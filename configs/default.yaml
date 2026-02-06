@@ -1,0 +1,16 @@
+airflow:
+  base_url: "http://localhost:8080"
+  timeout: "30s"
+  auth:
+    type: basic
+    username: "airflow"
+    password: "airflow"
+
+ui:
+  theme: dark
+  refresh_intervals:
+    dags: "5s"
+    runs: "3s"
+    tasks: "2s"
+    logs: "1s"
+    health: "10s"
