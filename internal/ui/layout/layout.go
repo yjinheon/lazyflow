@@ -109,11 +109,16 @@ func (m *MainLayout) ShowHelp() {
 
 [white]Navigation[-]
   j/k        Up / Down
-  Enter      Select
+  Enter      Select / Drill down
   Esc        Back to DAG list
 
 [white]Tabs[-]
   1-9        Switch tab
+
+[white]DAG Actions[-]
+  t          Trigger DAG run
+  p          Pause / Unpause DAG
+  b          Backfill DAG
 
 [white]DAG Filters[-]
   a          Active DAGs
@@ -208,18 +213,18 @@ func (m *MainLayout) ActiveTabPrimitive() tview.Primitive {
 	}
 }
 
-func (m *MainLayout) Root() *tview.Flex                      { return m.root }
-func (m *MainLayout) DagList() *views.DagListView            { return m.dagList }
-func (m *MainLayout) DagInfo() *views.DagInfoView            { return m.dagInfo }
-func (m *MainLayout) ClusterInfo() *views.ClusterInfoView    { return m.clusterInfo }
-func (m *MainLayout) Runs() *views.RunsView                  { return m.runsView }
-func (m *MainLayout) Tasks() *views.TasksView                { return m.tasksView }
-func (m *MainLayout) Logs() *views.LogsView                  { return m.logsView }
-func (m *MainLayout) Code() *views.CodeView                  { return m.codeView }
-func (m *MainLayout) Config() *views.ConfigView              { return m.configView }
-func (m *MainLayout) Connections() *views.ConnectionsView    { return m.connectionsView }
-func (m *MainLayout) Variables() *views.VariablesView        { return m.variablesView }
-func (m *MainLayout) Monitor() *views.MonitorView            { return m.monitorView }
-func (m *MainLayout) Lineage() *views.LineageView            { return m.lineageView }
-func (m *MainLayout) StatusBar() *StatusBar                  { return m.statusBar }
-func (m *MainLayout) Header() *Header                        { return m.header }
+func (m *MainLayout) Root() *tview.Flex                   { return m.root }
+func (m *MainLayout) DagList() *views.DagListView         { return m.dagList }
+func (m *MainLayout) DagInfo() *views.DagInfoView         { return m.dagInfo }
+func (m *MainLayout) ClusterInfo() *views.ClusterInfoView { return m.clusterInfo }
+func (m *MainLayout) Runs() *views.RunsView               { return m.runsView }
+func (m *MainLayout) Tasks() *views.TasksView             { return m.tasksView }
+func (m *MainLayout) Logs() *views.LogsView               { return m.logsView }
+func (m *MainLayout) Code() *views.CodeView               { return m.codeView }
+func (m *MainLayout) Config() *views.ConfigView           { return m.configView }
+func (m *MainLayout) Connections() *views.ConnectionsView { return m.connectionsView }
+func (m *MainLayout) Variables() *views.VariablesView     { return m.variablesView }
+func (m *MainLayout) Monitor() *views.MonitorView         { return m.monitorView }
+func (m *MainLayout) Lineage() *views.LineageView         { return m.lineageView }
+func (m *MainLayout) StatusBar() *StatusBar               { return m.statusBar }
+func (m *MainLayout) Header() *Header                     { return m.header }
