@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/rivo/tview"
@@ -15,6 +16,13 @@ import (
 )
 
 func main() {
+	// Debug log to file
+	logFile, _ := os.Create("lazyflow.log")
+	if logFile != nil {
+		log.SetOutput(logFile)
+		defer logFile.Close()
+	}
+
 	cfg, err := app.LoadConfig()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -58,27 +66,32 @@ func main() {
 	})
 
 	// Selection → update status bar
+	// NOTE: These subscribers are called synchronously from tview's main goroutine
+	// (via SetSelectedFunc → store.Select*). Using QueueUpdateDraw here would
+	// deadlock because QueueUpdate blocks until processed, but the main goroutine
+	// is the one that processes the queue. Use "go" to avoid blocking.
 	store.Subscribe(state.EventDAGSelected, func(data any) {
 		dagId := data.(string)
-		tviewApp.QueueUpdateDraw(func() {
+		go tviewApp.QueueUpdateDraw(func() {
 			mainLayout.StatusBar().SetInfo(dagId, "", "")
 		})
 	})
 	store.Subscribe(state.EventRunSelected, func(data any) {
 		runId := data.(string)
-		tviewApp.QueueUpdateDraw(func() {
+		go tviewApp.QueueUpdateDraw(func() {
 			mainLayout.StatusBar().SetInfo(store.SelectedDAG(), runId, "")
 		})
 	})
 	store.Subscribe(state.EventTaskSelected, func(data any) {
 		taskId := data.(string)
-		tviewApp.QueueUpdateDraw(func() {
+		go tviewApp.QueueUpdateDraw(func() {
 			mainLayout.StatusBar().SetInfo(store.SelectedDAG(), store.SelectedRun(), taskId)
 		})
 	})
 
 	// DAG selected → info panel, fetch runs + lineage + code
 	mainLayout.DagList().SetOnSelected(func(dagId string) {
+		log.Printf("[EVENT] DAG selected: %s", dagId)
 		store.SelectDAG(dagId)
 
 		for _, d := range store.GetDAGs() {
@@ -93,8 +106,10 @@ func main() {
 			ctx := context.Background()
 			runs, err := client.GetDAGRuns(ctx, dagId, &api.ListOptions{Limit: 50, OrderBy: "-start_date"})
 			if err != nil {
+				log.Printf("[ERROR] GetDAGRuns: %v", err)
 				return
 			}
+			log.Printf("[DATA] DAGRuns fetched: %d runs for %s", len(runs.DAGRuns), dagId)
 			store.SetDAGRuns(dagId, runs.DAGRuns)
 			tviewApp.QueueUpdateDraw(func() { mainLayout.Runs().Update(runs.DAGRuns) })
 		}()
@@ -123,6 +138,7 @@ func main() {
 
 	// Run selected → fetch task instances
 	mainLayout.Runs().SetOnSelected(func(runId string) {
+		log.Printf("[EVENT] Run selected: %s", runId)
 		store.SelectRun(runId)
 		dagId := store.SelectedDAG()
 
@@ -130,8 +146,10 @@ func main() {
 			ctx := context.Background()
 			ti, err := client.GetTaskInstances(ctx, dagId, runId, &api.ListOptions{Limit: 100})
 			if err != nil {
+				log.Printf("[ERROR] GetTaskInstances: %v", err)
 				return
 			}
+			log.Printf("[DATA] TaskInstances fetched: %d tasks for %s/%s", len(ti.TaskInstances), dagId, runId)
 			store.SetTaskInstances(dagId, runId, ti.TaskInstances)
 			tviewApp.QueueUpdateDraw(func() { mainLayout.Tasks().Update(ti.TaskInstances) })
 		}()
@@ -139,6 +157,7 @@ func main() {
 
 	// Task selected → fetch logs
 	mainLayout.Tasks().SetOnSelected(func(taskId string) {
+		log.Printf("[EVENT] Task selected: %s", taskId)
 		store.SelectTask(taskId)
 		dagId := store.SelectedDAG()
 		runId := store.SelectedRun()
@@ -147,9 +166,11 @@ func main() {
 			ctx := context.Background()
 			logs, err := client.GetTaskLogs(ctx, dagId, runId, taskId, 1)
 			if err != nil {
+				log.Printf("[ERROR] GetTaskLogs: %v", err)
 				tviewApp.QueueUpdateDraw(func() { mainLayout.Logs().SetError(err.Error()) })
 				return
 			}
+			log.Printf("[DATA] TaskLogs fetched: %d chars", len(logs))
 			tviewApp.QueueUpdateDraw(func() { mainLayout.Logs().SetContent(logs) })
 		}()
 	})
