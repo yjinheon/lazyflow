@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/rivo/tview"
@@ -13,6 +16,7 @@ import (
 	ui "github.com/yjinheon/lazyflow/internal/ui"
 	"github.com/yjinheon/lazyflow/internal/ui/layout"
 	"github.com/yjinheon/lazyflow/internal/ui/theme"
+	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
 func main() {
@@ -136,11 +140,16 @@ func main() {
 		}()
 	})
 
-	// Run selected → fetch task instances
+	// Run selected → fetch task instances + drill down to Tasks tab
 	mainLayout.Runs().SetOnSelected(func(runId string) {
 		log.Printf("[EVENT] Run selected: %s", runId)
 		store.SelectRun(runId)
 		dagId := store.SelectedDAG()
+
+		// Drill down: switch to Tasks tab
+		mainLayout.SwitchTab("tasks")
+		store.SetActiveTab("tasks")
+		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
 
 		go func() {
 			ctx := context.Background()
@@ -155,12 +164,16 @@ func main() {
 		}()
 	})
 
-	// Task selected → fetch logs
+	// Task selected → fetch logs + drill down to Logs tab
 	mainLayout.Tasks().SetOnSelected(func(taskId string) {
 		log.Printf("[EVENT] Task selected: %s", taskId)
 		store.SelectTask(taskId)
 		dagId := store.SelectedDAG()
 		runId := store.SelectedRun()
+
+		mainLayout.SwitchTab("logs")
+		store.SetActiveTab("logs")
+		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
 
 		go func() {
 			ctx := context.Background()
@@ -178,6 +191,101 @@ func main() {
 	// ---------- Keybindings ----------
 
 	kb := ui.NewKeyBindings(tviewApp, mainLayout, store)
+
+	kb.SetOnTrigger(func(dagId string) {
+		mainLayout.ShowTriggerModal(dagId, func(params layout.TriggerParams) {
+			go func() {
+				ctx := context.Background()
+				body := map[string]any{
+					"logical_date": params.LogicalDate,
+				}
+				if params.Conf != "" && params.Conf != "{}" {
+					var conf map[string]any
+					if err := json.Unmarshal([]byte(params.Conf), &conf); err == nil {
+						body["conf"] = conf
+					}
+				}
+				_, err := client.TriggerDAGRun(ctx, dagId, body)
+				tviewApp.QueueUpdateDraw(func() {
+					if err != nil {
+						mainLayout.StatusBar().SetError(fmt.Sprintf("Trigger failed: %v", err))
+					} else {
+						mainLayout.StatusBar().SetStatus(fmt.Sprintf("[green]DAG %s triggered[-]", dagId))
+					}
+				})
+			}()
+		})
+	})
+
+	kb.SetOnPause(func(dagId string) {
+		var dag models.DAG
+		for _, d := range store.GetDAGs() {
+			if d.DagId == dagId {
+				dag = d
+				break
+			}
+		}
+		action := "Pause"
+		if dag.IsPaused {
+			action = "Unpause"
+		}
+		mainLayout.ShowConfirmModal(
+			fmt.Sprintf(" %s DAG ", action),
+			fmt.Sprintf("%s DAG [yellow]%s[-]?", action, dagId),
+			func() {
+				go func() {
+					ctx := context.Background()
+					var err error
+					if dag.IsPaused {
+						err = client.UnpauseDAG(ctx, dagId)
+					} else {
+						err = client.PauseDAG(ctx, dagId)
+					}
+					tviewApp.QueueUpdateDraw(func() {
+						if err != nil {
+							mainLayout.StatusBar().SetError(fmt.Sprintf("%s failed: %v", action, err))
+						} else {
+							mainLayout.StatusBar().SetStatus(fmt.Sprintf("[green]DAG %s %sd[-]", dagId, strings.ToLower(action)))
+						}
+					})
+				}()
+			},
+		)
+	})
+
+	kb.SetOnBackfill(func(dagId string) {
+		mainLayout.ShowBackfillModal(dagId, func(params layout.BackfillParams) {
+			go func() {
+				ctx := context.Background()
+				body := map[string]any{
+					"dag_id":    dagId,
+					"from_date": params.FromDate,
+					"to_date":   params.ToDate,
+				}
+				if params.MaxActiveRuns != "" {
+					var n int
+					if _, err := fmt.Sscanf(params.MaxActiveRuns, "%d", &n); err == nil && n > 0 {
+						body["max_active_runs"] = n
+					}
+				}
+				if params.DagRunConf != "" && params.DagRunConf != "{}" {
+					var conf map[string]any
+					if err := json.Unmarshal([]byte(params.DagRunConf), &conf); err == nil {
+						body["dag_run_conf"] = conf
+					}
+				}
+				_, err := client.CreateBackfill(ctx, body)
+				tviewApp.QueueUpdateDraw(func() {
+					if err != nil {
+						mainLayout.StatusBar().SetError(fmt.Sprintf("Backfill failed: %v", err))
+					} else {
+						mainLayout.StatusBar().SetStatus(fmt.Sprintf("[green]Backfill created for %s[-]", dagId))
+					}
+				})
+			}()
+		})
+	})
+
 	kb.Install()
 
 	// ---------- Polling ----------
