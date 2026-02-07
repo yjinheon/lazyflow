@@ -60,7 +60,12 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.DagList())
 		return nil
 	case tcell.KeyTab:
-		// Cycle focus: dagList → runs/tasks table → back
+		focused := kb.app.GetFocus()
+		if focused == kb.layout.DagList() {
+			kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
+		} else {
+			kb.app.SetFocus(kb.layout.DagList())
+		}
 		return nil
 	}
 
@@ -72,6 +77,7 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 			if event.Rune() == t.key {
 				kb.layout.SwitchTab(t.name)
 				kb.store.SetActiveTab(t.name)
+				kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
 				return nil
 			}
 		}

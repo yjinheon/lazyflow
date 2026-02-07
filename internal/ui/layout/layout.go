@@ -181,6 +181,33 @@ func centerPrimitive(p tview.Primitive, width, height int) tview.Primitive {
 		AddItem(nil, 0, 1, false)
 }
 
+// ActiveTabPrimitive returns the currently visible bottom panel widget.
+func (m *MainLayout) ActiveTabPrimitive() tview.Primitive {
+	name, _ := m.tabContent.GetFrontPage()
+	switch name {
+	case "runs":
+		return m.runsView
+	case "tasks":
+		return m.tasksView
+	case "logs":
+		return m.logsView
+	case "code":
+		return m.codeView
+	case "config":
+		return m.configView
+	case "connections":
+		return m.connectionsView
+	case "variables":
+		return m.variablesView
+	case "monitor":
+		return m.monitorView
+	case "lineage":
+		return m.lineageView
+	default:
+		return m.runsView
+	}
+}
+
 func (m *MainLayout) Root() *tview.Flex                      { return m.root }
 func (m *MainLayout) DagList() *views.DagListView            { return m.dagList }
 func (m *MainLayout) DagInfo() *views.DagInfoView            { return m.dagInfo }
