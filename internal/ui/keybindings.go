@@ -27,17 +27,20 @@ type KeyBindings struct {
 	layout *layout.MainLayout
 	store  *state.Store
 
-	onRefresh func()
+	onRefresh  func()
+	onTrigger  func(dagId string)
+	onPause    func(dagId string)
+	onBackfill func(dagId string)
 }
 
 func NewKeyBindings(app *tview.Application, l *layout.MainLayout, s *state.Store) *KeyBindings {
 	return &KeyBindings{app: app, layout: l, store: s}
 }
 
-// SetOnRefresh registers a callback for F5 manual refresh.
-func (kb *KeyBindings) SetOnRefresh(fn func()) {
-	kb.onRefresh = fn
-}
+func (kb *KeyBindings) SetOnRefresh(fn func())        { kb.onRefresh = fn }
+func (kb *KeyBindings) SetOnTrigger(fn func(string))  { kb.onTrigger = fn }
+func (kb *KeyBindings) SetOnPause(fn func(string))    { kb.onPause = fn }
+func (kb *KeyBindings) SetOnBackfill(fn func(string)) { kb.onBackfill = fn }
 
 // Install registers the global input capture on the tview application.
 func (kb *KeyBindings) Install() {
@@ -99,6 +102,23 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case 'i':
 		kb.app.SetFocus(kb.layout.DagInfo())
+		return nil
+
+	// DAG actions
+	case 't':
+		if dagId := kb.store.SelectedDAG(); dagId != "" && kb.onTrigger != nil {
+			kb.onTrigger(dagId)
+		}
+		return nil
+	case 'p':
+		if dagId := kb.store.SelectedDAG(); dagId != "" && kb.onPause != nil {
+			kb.onPause(dagId)
+		}
+		return nil
+	case 'b':
+		if dagId := kb.store.SelectedDAG(); dagId != "" && kb.onBackfill != nil {
+			kb.onBackfill(dagId)
+		}
 		return nil
 
 	// Search

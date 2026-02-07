@@ -27,6 +27,7 @@ const (
 	EndpointConnections   = "/api/v2/connections"
 	EndpointVariables     = "/api/v2/variables"
 	EndpointAuthToken     = "/auth/token"
+	EndpointBackfills     = "/api/v2/backfills"
 )
 
 type Client struct {
@@ -326,7 +327,110 @@ func (c *Client) GetVariables(ctx context.Context, opts *ListOptions) (*models.V
 	return &out, nil
 }
 
+// ---------- DAG Operations ----------
+
+func (c *Client) TriggerDAGRun(ctx context.Context, dagId string, body map[string]any) (*models.DAGRun, error) {
+	var out models.DAGRun
+	endpoint := fmt.Sprintf(EndpointDAGRuns, dagId)
+	if err := c.post(ctx, endpoint, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) PauseDAG(ctx context.Context, dagId string) error {
+	return c.patch(ctx, fmt.Sprintf(EndpointDAGs+"/%s", dagId), map[string]any{"is_paused": true}, nil)
+}
+
+func (c *Client) UnpauseDAG(ctx context.Context, dagId string) error {
+	return c.patch(ctx, fmt.Sprintf(EndpointDAGs+"/%s", dagId), map[string]any{"is_paused": false}, nil)
+}
+
+func (c *Client) CreateBackfill(ctx context.Context, body map[string]any) (*models.BackfillResponse, error) {
+	var out models.BackfillResponse
+	if err := c.post(ctx, EndpointBackfills, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ---------- internal helpers ----------
+
+func (c *Client) post(ctx context.Context, endpoint string, body any, out any) error {
+	<-c.rateLimiter
+
+	if err := c.ensureToken(); err != nil {
+		return err
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+endpoint, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	c.setAuth(req)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return c.readError(resp)
+	}
+
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *Client) patch(ctx context.Context, endpoint string, body any, out any) error {
+	<-c.rateLimiter
+
+	if err := c.ensureToken(); err != nil {
+		return err
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PATCH", c.baseURL+endpoint, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	c.setAuth(req)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return c.readError(resp)
+	}
+
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return nil
+}
 
 func (c *Client) get(ctx context.Context, endpoint string, opts *ListOptions, out any) error {
 	<-c.rateLimiter
