@@ -17,7 +17,9 @@ func NewConfigView() *ConfigView {
 		Table: tview.NewTable(),
 	}
 	v.SetBorder(true).SetTitle(" Airflow Config ")
-	v.SetSelectable(true, false).SetFixed(1, 0)
+	// See RunsView.setup: start non-selectable to avoid tview Table's
+	// infinite-loop on Down arrow when no data rows exist.
+	v.SetSelectable(false, false).SetFixed(1, 0)
 	v.renderHeaders()
 	return v
 }
@@ -34,6 +36,7 @@ func (v *ConfigView) renderHeaders() {
 func (v *ConfigView) Update(cfg *models.AirflowConfigResponse) {
 	v.Clear()
 	v.renderHeaders()
+	v.SetSelectable(false, false)
 
 	if cfg == nil {
 		return
@@ -47,6 +50,9 @@ func (v *ConfigView) Update(cfg *models.AirflowConfigResponse) {
 			v.SetCell(row, 2, tview.NewTableCell(fmt.Sprintf("%.80s", opt.Value)).SetTextColor(tcell.ColorWhite))
 			row++
 		}
+	}
+	if row > 1 {
+		v.SetSelectable(true, false)
 	}
 }
 

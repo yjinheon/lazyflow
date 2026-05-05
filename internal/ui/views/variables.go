@@ -15,7 +15,9 @@ func NewVariablesView() *VariablesView {
 		Table: tview.NewTable(),
 	}
 	v.SetBorder(true).SetTitle(" Variables ")
-	v.SetSelectable(true, false).SetFixed(1, 0)
+	// See RunsView.setup: start non-selectable to avoid tview Table's
+	// infinite-loop on Down arrow when no data rows exist.
+	v.SetSelectable(false, false).SetFixed(1, 0)
 	v.renderHeaders()
 	return v
 }
@@ -32,6 +34,11 @@ func (v *VariablesView) renderHeaders() {
 func (v *VariablesView) Update(vars []models.Variable) {
 	v.Clear()
 	v.renderHeaders()
+	if len(vars) == 0 {
+		v.SetSelectable(false, false)
+		return
+	}
+	v.SetSelectable(true, false)
 
 	for i, vr := range vars {
 		row := i + 1

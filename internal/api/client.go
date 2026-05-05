@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yjinheon/lazyflow/internal/debugutil"
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
@@ -37,8 +38,13 @@ type Client struct {
 	password    string
 	rateLimiter <-chan time.Time
 
-	// JWT token management
+	// JWT token management.
+	// mu protects accessToken/tokenExpiry only; it is held for nanoseconds.
+	// refreshMu serializes concurrent refresh HTTP calls (avoid thundering
+	// herd) but is *not* held while reading the token, so unrelated API
+	// calls do not block on each other while one goroutine refreshes.
 	mu          sync.Mutex
+	refreshMu   sync.Mutex
 	accessToken string
 	tokenExpiry time.Time
 }
@@ -105,13 +111,32 @@ type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
-// ensureToken acquires or refreshes a JWT token if needed.
-func (c *Client) ensureToken() error {
+// tokenIsFresh reports whether the cached token is still valid (with 60s buffer).
+func (c *Client) tokenIsFresh() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.accessToken != "" && time.Now().Add(60*time.Second).Before(c.tokenExpiry)
+}
 
-	// Reuse existing token if still valid (with 60s buffer)
-	if c.accessToken != "" && time.Now().Add(60*time.Second).Before(c.tokenExpiry) {
+// ensureToken acquires or refreshes a JWT token if needed.
+//
+// IMPORTANT: HTTP calls are made *outside* c.mu so they do not serialize
+// other goroutines reading the token via setAuth(). c.refreshMu serializes
+// concurrent refreshes so we don't issue duplicate /auth/token requests.
+func (c *Client) ensureToken() error {
+	if c.tokenIsFresh() {
+		return nil
+	}
+
+	debugutil.Tag("FZ-api", "ensureToken acquiring refreshMu")
+	c.refreshMu.Lock()
+	defer func() {
+		c.refreshMu.Unlock()
+		debugutil.Tag("FZ-api", "ensureToken released refreshMu")
+	}()
+
+	// Re-check: another goroutine may have refreshed while we waited.
+	if c.tokenIsFresh() {
 		return nil
 	}
 
@@ -130,7 +155,11 @@ func (c *Client) ensureToken() error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	debugutil.Tag("FZ-api", "ensureToken POST %s START", EndpointAuthToken)
+	tStart := time.Now()
 	resp, err := c.httpClient.Do(req)
+	debugutil.Tag("FZ-api", "ensureToken POST %s END elapsed=%v err=%v",
+		EndpointAuthToken, time.Since(tStart), err)
 	if err != nil {
 		return fmt.Errorf("token request: %w", err)
 	}
@@ -146,9 +175,12 @@ func (c *Client) ensureToken() error {
 		return fmt.Errorf("decode token: %w", err)
 	}
 
+	// Store new token under c.mu (held for nanoseconds).
+	c.mu.Lock()
 	c.accessToken = tok.AccessToken
 	// Airflow 3 default token lifetime is 24h; use 23h to be safe
 	c.tokenExpiry = time.Now().Add(23 * time.Hour)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -199,7 +231,10 @@ func (c *Client) GetTaskInstances(ctx context.Context, dagId, runId string, opts
 
 // GetTaskLogs fetches logs for a task instance. tryNumber defaults to 1 if <= 0.
 func (c *Client) GetTaskLogs(ctx context.Context, dagId, runId, taskId string, tryNumber int) (string, error) {
+	debugutil.Tag("FZ-api", "GET TaskLogs waitRateLimiter")
+	tWait := time.Now()
 	<-c.rateLimiter
+	debugutil.Tag("FZ-api", "GET TaskLogs rateLimiterAcquired waited=%v", time.Since(tWait))
 
 	if err := c.ensureToken(); err != nil {
 		return "", err
@@ -219,11 +254,15 @@ func (c *Client) GetTaskLogs(ctx context.Context, dagId, runId, taskId string, t
 	c.setAuth(req)
 	req.Header.Set("Accept", "application/json")
 
+	debugutil.Tag("FZ-api", "GET %s START", endpoint)
+	tStart := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		debugutil.Tag("FZ-api", "GET %s END elapsed=%v err=%v", endpoint, time.Since(tStart), err)
 		return "", fmt.Errorf("execute request: %w", err)
 	}
 	defer resp.Body.Close()
+	debugutil.Tag("FZ-api", "GET %s END elapsed=%v status=%d", endpoint, time.Since(tStart), resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return "", c.readError(resp)
@@ -264,7 +303,10 @@ func (c *Client) GetHealth(ctx context.Context) (*models.HealthInfo, error) {
 // ---------- DAG Source ----------
 
 func (c *Client) GetDAGSource(ctx context.Context, dagId string) (string, error) {
+	debugutil.Tag("FZ-api", "GET DAGSource waitRateLimiter")
+	tWait := time.Now()
 	<-c.rateLimiter
+	debugutil.Tag("FZ-api", "GET DAGSource rateLimiterAcquired waited=%v", time.Since(tWait))
 
 	if err := c.ensureToken(); err != nil {
 		return "", err
@@ -280,11 +322,15 @@ func (c *Client) GetDAGSource(ctx context.Context, dagId string) (string, error)
 	c.setAuth(req)
 	req.Header.Set("Accept", "text/plain")
 
+	debugutil.Tag("FZ-api", "GET %s START", endpoint)
+	tStart := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		debugutil.Tag("FZ-api", "GET %s END elapsed=%v err=%v", endpoint, time.Since(tStart), err)
 		return "", fmt.Errorf("execute request: %w", err)
 	}
 	defer resp.Body.Close()
+	debugutil.Tag("FZ-api", "GET %s END elapsed=%v status=%d", endpoint, time.Since(tStart), resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return "", c.readError(resp)
@@ -433,7 +479,10 @@ func (c *Client) patch(ctx context.Context, endpoint string, body any, out any) 
 }
 
 func (c *Client) get(ctx context.Context, endpoint string, opts *ListOptions, out any) error {
+	debugutil.Tag("FZ-api", "GET %s waitRateLimiter", endpoint)
+	tWait := time.Now()
 	<-c.rateLimiter
+	debugutil.Tag("FZ-api", "GET %s rateLimiterAcquired waited=%v", endpoint, time.Since(tWait))
 
 	if err := c.ensureToken(); err != nil {
 		return err
@@ -455,11 +504,16 @@ func (c *Client) get(ctx context.Context, endpoint string, opts *ListOptions, ou
 	c.setAuth(req)
 	req.Header.Set("Accept", "application/json")
 
+	debugutil.Tag("FZ-api", "GET %s START", endpoint)
+	tStart := time.Now()
 	resp, err := c.httpClient.Do(req)
+	elapsed := time.Since(tStart)
 	if err != nil {
+		debugutil.Tag("FZ-api", "GET %s END elapsed=%v err=%v", endpoint, elapsed, err)
 		return fmt.Errorf("execute request: %w", err)
 	}
 	defer resp.Body.Close()
+	debugutil.Tag("FZ-api", "GET %s END elapsed=%v status=%d", endpoint, elapsed, resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return c.readError(resp)
