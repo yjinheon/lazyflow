@@ -25,7 +25,9 @@ func NewTasksView() *TasksView {
 
 func (v *TasksView) setup() {
 	v.SetBorder(true).SetTitle(" Task Instances ")
-	v.SetSelectable(true, false)
+	// See RunsView.setup: keep non-selectable while header-only to avoid
+	// tview Table.InputHandler infinite loop on Down arrow.
+	v.SetSelectable(false, false)
 	v.SetFixed(1, 0)
 	v.SetSelectedStyle(tcell.StyleDefault.
 		Background(theme.DefaultDarkTheme.TableSelected).
@@ -63,6 +65,10 @@ func (v *TasksView) Update(tasks []models.TaskInstance) {
 	v.tasks = tasks
 	v.Clear()
 	v.setup()
+	if len(tasks) == 0 {
+		return
+	}
+	v.SetSelectable(true, false)
 
 	t := theme.DefaultDarkTheme
 	for i, task := range tasks {

@@ -1,10 +1,10 @@
 airflow:
-  base_url: 'http://localhost:18080'
+  base_url: 'http://localhost:28080'
   timeout: '30s'
   auth:
     type: basic
-    username: 'admin'
-    password: 'admin'
+    username: 'airflow'
+    password: 'airflow'
 
 ui:
   theme: dark

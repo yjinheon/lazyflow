@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yjinheon/lazyflow/internal/debugutil"
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
@@ -65,9 +66,16 @@ func (s *Store) notify(event string, data any) {
 	copy(handlers, s.subscribers[event])
 	s.mu.RUnlock()
 
-	for _, h := range handlers {
+	debugutil.Tag("FZ-store", "notify event=%s handlers=%d START", event, len(handlers))
+	tStart := time.Now()
+	for i, h := range handlers {
+		hStart := time.Now()
 		h(data)
+		if d := time.Since(hStart); d > 50*time.Millisecond {
+			debugutil.Tag("FZ-store", "notify event=%s handler[%d] SLOW elapsed=%v", event, i, d)
+		}
 	}
+	debugutil.Tag("FZ-store", "notify event=%s END elapsed=%v", event, time.Since(tStart))
 }
 
 // ---------- DAGs ----------

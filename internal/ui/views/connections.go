@@ -17,7 +17,9 @@ func NewConnectionsView() *ConnectionsView {
 		Table: tview.NewTable(),
 	}
 	v.SetBorder(true).SetTitle(" Connections ")
-	v.SetSelectable(true, false).SetFixed(1, 0)
+	// See RunsView.setup: start non-selectable to avoid tview Table's
+	// infinite-loop on Down arrow when no data rows exist.
+	v.SetSelectable(false, false).SetFixed(1, 0)
 	v.renderHeaders()
 	return v
 }
@@ -34,6 +36,11 @@ func (v *ConnectionsView) renderHeaders() {
 func (v *ConnectionsView) Update(conns []models.Connection) {
 	v.Clear()
 	v.renderHeaders()
+	if len(conns) == 0 {
+		v.SetSelectable(false, false)
+		return
+	}
+	v.SetSelectable(true, false)
 
 	for i, c := range conns {
 		row := i + 1

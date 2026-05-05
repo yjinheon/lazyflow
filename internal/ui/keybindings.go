@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/yjinheon/lazyflow/internal/debugutil"
 	"github.com/yjinheon/lazyflow/internal/state"
 	"github.com/yjinheon/lazyflow/internal/ui/layout"
 )
@@ -48,6 +51,15 @@ func (kb *KeyBindings) Install() {
 }
 
 func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
+	tStart := time.Now()
+	defer func() {
+		if d := time.Since(tStart); d > 30*time.Millisecond {
+			debugutil.Tag("FZ-key", "handle SLOW key=%v rune=%q elapsed=%v",
+				event.Key(), event.Rune(), d)
+		}
+	}()
+	debugutil.Tag("FZ-key", "handle key=%v rune=%q", event.Key(), event.Rune())
+
 	// Special keys
 	switch event.Key() {
 	case tcell.KeyCtrlC:

@@ -30,7 +30,12 @@ func NewDagListView() *DagListView {
 
 func (v *DagListView) setup() {
 	v.SetBorder(true).SetTitle(v.titleText()).SetBorderColor(tcell.ColorGray)
-	v.SetSelectable(true, false)
+	// Selectable is toggled in render() based on whether any data rows
+	// remain after filtering. With a header-only table, tview's draw-time
+	// clamp pushes selectedRow out of bounds, then the next Down arrow
+	// enters an infinite loop in Table.InputHandler down→backwards
+	// (table.go:1428).
+	v.SetSelectable(false, false)
 	v.SetFixed(1, 0)
 	v.SetSelectedStyle(tcell.StyleDefault.
 		Background(theme.DefaultDarkTheme.TableSelected).
@@ -134,6 +139,11 @@ func (v *DagListView) applyFilter() {
 func (v *DagListView) render() {
 	v.Clear()
 	v.renderHeaders()
+	if len(v.dags) == 0 {
+		v.SetSelectable(false, false)
+		return
+	}
+	v.SetSelectable(true, false)
 
 	t := theme.DefaultDarkTheme
 	for i, dag := range v.dags {

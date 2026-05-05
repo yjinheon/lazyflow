@@ -25,7 +25,11 @@ func NewRunsView() *RunsView {
 
 func (v *RunsView) setup() {
 	v.SetBorder(true).SetTitle(" DAG Runs ")
-	v.SetSelectable(true, false)
+	// Selectable is enabled only when Update populates data rows. With a
+	// header-only table (all cells NotSelectable), tview's draw-time clamp
+	// pushes selectedRow out of bounds, and the next Down arrow enters an
+	// infinite loop in Table.InputHandler down→backwards (table.go:1428).
+	v.SetSelectable(false, false)
 	v.SetFixed(1, 0)
 	v.SetSelectedStyle(tcell.StyleDefault.
 		Background(theme.DefaultDarkTheme.TableSelected).
@@ -63,6 +67,10 @@ func (v *RunsView) Update(runs []models.DAGRun) {
 	v.runs = runs
 	v.Clear()
 	v.setup()
+	if len(runs) == 0 {
+		return // keep table non-selectable while empty (see setup comment)
+	}
+	v.SetSelectable(true, false)
 
 	t := theme.DefaultDarkTheme
 	for i, run := range runs {
