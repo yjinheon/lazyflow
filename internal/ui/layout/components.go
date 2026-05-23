@@ -57,6 +57,7 @@ var tabLabels = []struct {
 	{"7", "Vars"},
 	{"8", "Monitor"},
 	{"9", "Lineage"},
+	{"0", "Backfills"},
 }
 
 type TabBar struct {
@@ -85,6 +86,7 @@ func (t *TabBar) refresh() {
 		"Runs": "runs", "Tasks": "tasks", "Logs": "logs",
 		"Code": "code", "Config": "config", "Conns": "connections",
 		"Vars": "variables", "Monitor": "monitor", "Lineage": "lineage",
+		"Backfills": "backfills",
 	}
 	for _, tab := range tabLabels {
 		tabID := nameMap[tab.name]

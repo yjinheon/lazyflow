@@ -40,6 +40,7 @@ type MainLayout struct {
 	variablesView   *views.VariablesView
 	monitorView     *views.MonitorView
 	lineageView     *views.LineageView
+	backfillsView   *views.BackfillsView
 
 	tabContent *tview.Pages
 }
@@ -63,6 +64,7 @@ func NewMainLayout(app *tview.Application) *MainLayout {
 		variablesView:   views.NewVariablesView(),
 		monitorView:     views.NewMonitorView(),
 		lineageView:     views.NewLineageView(),
+		backfillsView:   views.NewBackfillsView(),
 
 		tabContent: tview.NewPages(),
 	}
@@ -96,6 +98,7 @@ func (m *MainLayout) registerTabs() {
 	m.tabContent.AddPage("variables", m.variablesView.Root(), true, false)
 	m.tabContent.AddPage("monitor", m.monitorView.Root(), true, false)
 	m.tabContent.AddPage("lineage", m.lineageView.Root(), true, false)
+	m.tabContent.AddPage("backfills", m.backfillsView.Root(), true, false)
 }
 
 func (m *MainLayout) SwitchTab(name string) {
@@ -208,6 +211,8 @@ func (m *MainLayout) ActiveTabPrimitive() tview.Primitive {
 		return m.monitorView
 	case "lineage":
 		return m.lineageView
+	case "backfills":
+		return m.backfillsView.List()
 	default:
 		return m.runsView
 	}
@@ -226,5 +231,6 @@ func (m *MainLayout) Connections() *views.ConnectionsView { return m.connections
 func (m *MainLayout) Variables() *views.VariablesView     { return m.variablesView }
 func (m *MainLayout) Monitor() *views.MonitorView         { return m.monitorView }
 func (m *MainLayout) Lineage() *views.LineageView         { return m.lineageView }
+func (m *MainLayout) Backfills() *views.BackfillsView     { return m.backfillsView }
 func (m *MainLayout) StatusBar() *StatusBar               { return m.statusBar }
 func (m *MainLayout) Header() *Header                     { return m.header }
