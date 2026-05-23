@@ -102,3 +102,15 @@ func (p *Poller) Stop() {
 	debugutil.Tag("FZ-poll", "Stop")
 	p.cancel()
 }
+
+// StopSub cancels a single named sub-poller without affecting others.
+// Use this when a poll is no longer relevant (e.g., user left the tab).
+func (p *Poller) StopSub(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if cancel, ok := p.subCancels[name]; ok {
+		debugutil.Tag("FZ-poll", "StopSub %s", name)
+		cancel()
+		delete(p.subCancels, name)
+	}
+}
