@@ -10,12 +10,20 @@ import (
 
 // Event names used for subscriptions.
 const (
-	EventDAGsUpdated     = "dags_updated"
-	EventDAGSelected     = "dag_selected"
-	EventRunSelected     = "run_selected"
-	EventTaskSelected    = "task_selected"
-	EventTabChanged      = "tab_changed"
-	EventHealthUpdated   = "health_updated"
+	EventDAGsUpdated          = "dags_updated"
+	EventDAGRunsUpdated       = "dag_runs_updated"
+	EventDAGSelected          = "dag_selected"
+	EventRunSelected          = "run_selected"
+	EventTaskSelected         = "task_selected"
+	EventTaskInstancesUpdated = "task_instances_updated"
+	EventTabChanged           = "tab_changed"
+	EventHealthUpdated        = "health_updated"
+	EventBackfillsUpdated     = "backfills_updated"
+	EventBackfillSelected     = "backfill_selected"
+	EventBackfillsActioned    = "backfills_actioned"
+	EventGanttModeChanged     = "tasks_gantt_mode"
+	EventLineageUpdated       = "lineage_updated"
+	EventCriticalPathChanged  = "critical_path_changed"
 )
 
 type Store struct {
@@ -26,6 +34,11 @@ type Store struct {
 	dagRuns       map[string][]models.DAGRun       // dagId -> runs
 	taskInstances map[string][]models.TaskInstance  // "dagId/runId" -> tasks
 	health        *models.HealthInfo
+	tasks            map[string][]models.Task     // dagId → lineage
+	backfills        map[string][]models.Backfill
+	selectedBackfill int
+	ganttMode        bool
+	criticalPath     map[string]bool
 
 	// Selection state
 	selectedDAG  string
@@ -43,12 +56,16 @@ type Store struct {
 
 func NewStore() *Store {
 	return &Store{
-		dags:          make([]models.DAG, 0),
-		dagRuns:       make(map[string][]models.DAGRun),
-		taskInstances: make(map[string][]models.TaskInstance),
-		lastRefresh:   make(map[string]time.Time),
-		cacheTTL:      5 * time.Second,
-		subscribers:   make(map[string][]func(any)),
+		dags:             make([]models.DAG, 0),
+		dagRuns:          make(map[string][]models.DAGRun),
+		taskInstances:    make(map[string][]models.TaskInstance),
+		lastRefresh:      make(map[string]time.Time),
+		cacheTTL:         5 * time.Second,
+		subscribers:      make(map[string][]func(any)),
+		tasks:            make(map[string][]models.Task),
+		backfills:        make(map[string][]models.Backfill),
+		selectedBackfill: -1,
+		criticalPath:     make(map[string]bool),
 	}
 }
 
@@ -104,6 +121,8 @@ func (s *Store) SetDAGRuns(dagId string, runs []models.DAGRun) {
 	s.dagRuns[dagId] = runs
 	s.lastRefresh["runs:"+dagId] = time.Now()
 	s.mu.Unlock()
+
+	s.notify(EventDAGRunsUpdated, dagId)
 }
 
 func (s *Store) GetDAGRuns(dagId string) []models.DAGRun {
@@ -123,6 +142,8 @@ func (s *Store) SetTaskInstances(dagId, runId string, tasks []models.TaskInstanc
 	s.taskInstances[key] = tasks
 	s.lastRefresh["tasks:"+key] = time.Now()
 	s.mu.Unlock()
+
+	s.notify(EventTaskInstancesUpdated, key)
 }
 
 func (s *Store) GetTaskInstances(dagId, runId string) []models.TaskInstance {
@@ -225,4 +246,126 @@ func (s *Store) NeedsRefresh(key string) bool {
 		return true
 	}
 	return time.Since(t) > s.cacheTTL
+}
+
+// ---------- Tasks (lineage) ----------
+
+// tasks cache (DAG-level lineage). Keyed by dag_id.
+// Used by critical-path computation in the Gantt view.
+
+func (s *Store) SetTasks(dagId string, tasks []models.Task) {
+	s.mu.Lock()
+	if s.tasks == nil {
+		s.tasks = make(map[string][]models.Task)
+	}
+	s.tasks[dagId] = tasks
+	s.mu.Unlock()
+
+	s.notify(EventLineageUpdated, dagId)
+}
+
+func (s *Store) GetTasks(dagId string) []models.Task {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	in := s.tasks[dagId]
+	out := make([]models.Task, len(in))
+	copy(out, in)
+	return out
+}
+
+// ---------- Backfills ----------
+
+func (s *Store) SetBackfills(dagId string, bfs []models.Backfill) {
+	s.mu.Lock()
+	s.backfills[dagId] = bfs
+	s.mu.Unlock()
+
+	s.notify(EventBackfillsUpdated, dagId)
+}
+
+func (s *Store) GetBackfills(dagId string) []models.Backfill {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	in := s.backfills[dagId]
+	out := make([]models.Backfill, len(in))
+	copy(out, in)
+	return out
+}
+
+func (s *Store) SelectBackfill(id int) {
+	s.mu.Lock()
+	s.selectedBackfill = id
+	s.mu.Unlock()
+
+	s.notify(EventBackfillSelected, id)
+}
+
+func (s *Store) SelectedBackfill() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.selectedBackfill
+}
+
+// ---------- Gantt mode ----------
+
+func (s *Store) SetGanttMode(on bool) {
+	s.mu.Lock()
+	changed := s.ganttMode != on
+	s.ganttMode = on
+	s.mu.Unlock()
+
+	if changed {
+		s.notify(EventGanttModeChanged, on)
+	}
+}
+
+func (s *Store) GanttMode() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.ganttMode
+}
+
+// ---------- Critical path ----------
+
+// SetCriticalPath replaces the critical-path set and notifies only when changed.
+// This prevents needless redraws when running-task duration "moves" but the
+// path remains the same.
+func (s *Store) SetCriticalPath(set map[string]bool) {
+	s.mu.Lock()
+	changed := !mapsEqual(s.criticalPath, set)
+	s.criticalPath = set
+	s.mu.Unlock()
+
+	if changed {
+		s.notify(EventCriticalPathChanged, set)
+	}
+}
+
+func (s *Store) IsOnCriticalPath(taskId string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.criticalPath[taskId]
+}
+
+// GetCriticalPath returns a defensive copy of the critical-path set.
+func (s *Store) GetCriticalPath() map[string]bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]bool, len(s.criticalPath))
+	for k, v := range s.criticalPath {
+		out[k] = v
+	}
+	return out
+}
+
+func mapsEqual(a, b map[string]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
