@@ -140,3 +140,13 @@ func (m *MainLayout) dismissModal() {
 	m.app.SetRoot(m.root, true)
 	m.app.SetFocus(m.dagList)
 }
+
+// ShowBackfillCancelModal asks for confirmation, then calls onConfirm if accepted.
+// In-flight runs are governed by Airflow's policy; we only stop scheduling.
+func (m *MainLayout) ShowBackfillCancelModal(id int, onConfirm func()) {
+	msg := fmt.Sprintf(
+		"Cancel backfill #%d?\nIn-flight runs will be allowed to complete by Airflow's policy.",
+		id,
+	)
+	m.ShowConfirmModal("Cancel Backfill", msg, onConfirm)
+}
