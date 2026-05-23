@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yjinheon/lazyflow/internal/ui/theme"
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
@@ -128,7 +129,8 @@ func EmitRLE(cells []Cell, bold bool) string {
 			j++
 		}
 		if cells[i].Color != "" {
-			tag := cells[i].Color
+			hex := theme.GanttMarkupColor(cells[i].Color)
+			tag := hex
 			if bold {
 				tag += "::b"
 			}

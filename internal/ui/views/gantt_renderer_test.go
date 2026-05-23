@@ -100,9 +100,9 @@ func TestEmitRLE_collapsesAdjacent(t *testing.T) {
 		{Char: ' ', Color: ""},
 	}
 	out := EmitRLE(cells, false)
-	// Two color spans (queued + success).
-	if got := strings.Count(out, "[queued]") + strings.Count(out, "[success]"); got != 2 {
-		t.Fatalf("expected 2 color tags, got %d in %q", got, out)
+	// Two color spans (queued + success) emitted as hex tags like [#xxxxxx].
+	if got := strings.Count(out, "[#"); got != 2 {
+		t.Fatalf("expected 2 color spans, got %d in %q", got, out)
 	}
 }
 
