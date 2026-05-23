@@ -23,6 +23,7 @@ var tabNames = []struct {
 	{'7', "variables"},
 	{'8', "monitor"},
 	{'9', "lineage"},
+	{'0', "backfills"},
 }
 
 type KeyBindings struct {
@@ -30,10 +31,13 @@ type KeyBindings struct {
 	layout *layout.MainLayout
 	store  *state.Store
 
-	onRefresh  func()
-	onTrigger  func(dagId string)
-	onPause    func(dagId string)
-	onBackfill func(dagId string)
+	onRefresh          func()
+	onTrigger          func(dagId string)
+	onPause            func(dagId string)
+	onBackfill         func(dagId string)
+	onBackfillCancel   func(id int)
+	onBackfillPause    func(id int)
+	onBackfillUnpause  func(id int)
 }
 
 func NewKeyBindings(app *tview.Application, l *layout.MainLayout, s *state.Store) *KeyBindings {
@@ -44,6 +48,9 @@ func (kb *KeyBindings) SetOnRefresh(fn func())        { kb.onRefresh = fn }
 func (kb *KeyBindings) SetOnTrigger(fn func(string))  { kb.onTrigger = fn }
 func (kb *KeyBindings) SetOnPause(fn func(string))    { kb.onPause = fn }
 func (kb *KeyBindings) SetOnBackfill(fn func(string)) { kb.onBackfill = fn }
+func (kb *KeyBindings) SetOnBackfillCancel(fn func(int))  { kb.onBackfillCancel = fn }
+func (kb *KeyBindings) SetOnBackfillPause(fn func(int))   { kb.onBackfillPause = fn }
+func (kb *KeyBindings) SetOnBackfillUnpause(fn func(int)) { kb.onBackfillUnpause = fn }
 
 // Install registers the global input capture on the tview application.
 func (kb *KeyBindings) Install() {
@@ -86,8 +93,8 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 
 	// Rune keys
 	switch event.Rune() {
-	// Tab switching (1-9)
-	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+	// Tab switching (0-9)
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		for _, t := range tabNames {
 			if event.Rune() == t.key {
 				kb.layout.SwitchTab(t.name)
@@ -96,6 +103,18 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 				return nil
 			}
 		}
+
+	// Tab aliases and toggles
+	case 'B':
+		kb.layout.SwitchTab("backfills")
+		kb.store.SetActiveTab("backfills")
+		kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
+		return nil
+	case 'g':
+		if kb.store.ActiveTab() == "tasks" {
+			kb.store.SetGanttMode(!kb.store.GanttMode())
+		}
+		return nil
 
 	// DAG filters
 	case 'a':
@@ -123,6 +142,12 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		}
 		return nil
 	case 'p':
+		if kb.store.ActiveTab() == "backfills" {
+			if id := kb.store.SelectedBackfill(); id > 0 && kb.onBackfillPause != nil {
+				kb.onBackfillPause(id)
+			}
+			return nil
+		}
 		if dagId := kb.store.SelectedDAG(); dagId != "" && kb.onPause != nil {
 			kb.onPause(dagId)
 		}
@@ -130,6 +155,20 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	case 'b':
 		if dagId := kb.store.SelectedDAG(); dagId != "" && kb.onBackfill != nil {
 			kb.onBackfill(dagId)
+		}
+		return nil
+	case 'c':
+		if kb.store.ActiveTab() == "backfills" {
+			if id := kb.store.SelectedBackfill(); id > 0 && kb.onBackfillCancel != nil {
+				kb.onBackfillCancel(id)
+			}
+		}
+		return nil
+	case 'u':
+		if kb.store.ActiveTab() == "backfills" {
+			if id := kb.store.SelectedBackfill(); id > 0 && kb.onBackfillUnpause != nil {
+				kb.onBackfillUnpause(id)
+			}
 		}
 		return nil
 
