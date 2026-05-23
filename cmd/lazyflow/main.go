@@ -255,7 +255,7 @@ func main() {
 		store.SelectRun(runId)
 		dagId := store.SelectedDAG()
 
-		// Drill down: switch to Tasks tab
+		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
 		mainLayout.SwitchTab("tasks")
 		store.SetActiveTab("tasks")
 		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
@@ -280,6 +280,7 @@ func main() {
 		dagId := store.SelectedDAG()
 		runId := store.SelectedRun()
 
+		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
 		mainLayout.SwitchTab("logs")
 		store.SetActiveTab("logs")
 		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
@@ -496,29 +497,37 @@ func main() {
 		if dagId == "" {
 			return
 		}
-		poller.Restart("backfills", backfillsInterval, func(ctx context.Context) {
+		// 1) Stale-while-revalidate: show cached data instantly if available.
+		if cached, ok := bfCache.GetBackfills(dagId); ok {
+			store.SetBackfills(dagId, cached)
+		}
+
+		// 2) One-shot fresh fetch so first-entry isn't blank for 5s.
+		fetch := func(ctx context.Context) {
 			col, err := client.ListBackfills(ctx, dagId, nil)
 			if err != nil {
 				debugutil.Tag("FZ-bf", "ListBackfills err=%v", err)
 				return
 			}
-			// Compute progress per backfill from DAG runs in date range.
 			runs, _ := client.GetDAGRuns(ctx, dagId, nil)
 			if runs != nil {
 				for i := range col.Backfills {
-					bf := &col.Backfills[i]
-					countBackfillRuns(bf, runs.DAGRuns)
+					countBackfillRuns(&col.Backfills[i], runs.DAGRuns)
 				}
 			}
 			bfCache.PutBackfills(dagId, col.Backfills)
 			store.SetBackfills(dagId, col.Backfills)
-		})
+		}
+		go fetch(context.Background())
+
+		// 3) Periodic refresh.
+		poller.Restart("backfills", backfillsInterval, fetch)
 	}
 	store.Subscribe(state.EventTabChanged, func(_ any) {
 		if store.ActiveTab() == "backfills" {
 			startBackfillsPoll()
 		} else {
-			poller.StopSub("backfills")
+			go poller.StopSub("backfills")
 		}
 	})
 
