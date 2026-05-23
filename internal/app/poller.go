@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -32,11 +33,17 @@ func NewPoller(parent context.Context) *Poller {
 // Fixed starts a polling loop that runs for the lifetime of the poller.
 func (p *Poller) Fixed(interval time.Duration, immediate bool, fn func(ctx context.Context)) {
 	go func() {
-		debugutil.Tag("FZ-poll", "Fixed loop START interval=%v immediate=%v", interval, immediate)
+		// ±15% jitter on first tick to avoid startup thundering-herd
+		// when multiple Fixed pollers spin up together.
+		jitter := time.Duration(float64(interval) * 0.15 * (rand.Float64()*2 - 1))
+		debugutil.Tag("FZ-poll", "Fixed loop START interval=%v immediate=%v jitter=%v", interval, immediate, jitter)
 		if immediate {
 			tStart := time.Now()
 			fn(p.ctx)
 			debugutil.Tag("FZ-poll", "Fixed immediate fn END elapsed=%v", time.Since(tStart))
+		}
+		if jitter > 0 {
+			time.Sleep(jitter)
 		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
