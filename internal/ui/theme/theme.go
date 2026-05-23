@@ -2,6 +2,8 @@
 package theme
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -24,6 +26,8 @@ type Theme struct {
 	StatusPaused   tcell.Color
 	StatusQueued   tcell.Color
 	StatusUpstream tcell.Color
+	StatusSkipped  tcell.Color
+	CriticalPath   tcell.Color
 
 	Accent    tcell.Color
 	AccentDim tcell.Color
@@ -54,6 +58,8 @@ var DefaultDarkTheme = Theme{
 	StatusPaused:   tcell.NewRGBColor(251, 191, 36),  // amber-400
 	StatusQueued:   tcell.NewRGBColor(168, 85, 247),  // purple-500
 	StatusUpstream: tcell.NewRGBColor(107, 114, 128), // gray-500
+	StatusSkipped:  tcell.NewRGBColor(82, 82, 91),    // zinc-600
+	CriticalPath:   tcell.NewRGBColor(244, 114, 182), // pink-400
 
 	Accent:    tcell.NewRGBColor(99, 102, 241), // indigo-500
 	AccentDim: tcell.NewRGBColor(67, 56, 202),  // indigo-700
@@ -66,8 +72,16 @@ var DefaultDarkTheme = Theme{
 	TableRowAlt:   tcell.NewRGBColor(30, 30, 35),
 }
 
+// active tracks the most recently applied theme so helpers can resolve
+// theme tokens (e.g. GanttMarkupColor) without taking explicit args.
+var active = DefaultDarkTheme
+
+// ActiveTheme returns the theme most recently passed to ApplyTheme.
+func ActiveTheme() Theme { return active }
+
 // ApplyTheme sets the global tview styles
 func ApplyTheme(t Theme) {
+	active = t
 	tview.Styles = tview.Theme{
 		PrimitiveBackgroundColor:    t.PrimaryBg,
 		ContrastBackgroundColor:     t.SecondaryBg,
@@ -116,4 +130,35 @@ func (t Theme) TableCellStyle(row, col int, isSelected bool) tcell.Style {
 	}
 
 	return style
+}
+
+// GanttMarkupColor maps the Gantt renderer's color tokens to tview markup hex strings.
+// The renderer emits tokens like "success" / "queued" / "failed" / "running" /
+// "skipped" / "upstream" / "critical". tview understands hex strings like
+// "#22c55e" inside markup tags: "[#22c55e]…[-]".
+func GanttMarkupColor(token string) string {
+	t := ActiveTheme()
+	switch token {
+	case "success":
+		return colorHex(t.StatusSuccess)
+	case "failed":
+		return colorHex(t.StatusFailed)
+	case "running":
+		return colorHex(t.StatusRunning)
+	case "queued":
+		return colorHex(t.StatusQueued)
+	case "skipped":
+		return colorHex(t.StatusSkipped)
+	case "upstream":
+		return colorHex(t.StatusUpstream)
+	case "critical":
+		return colorHex(t.CriticalPath)
+	default:
+		return colorHex(t.PrimaryText)
+	}
+}
+
+func colorHex(c tcell.Color) string {
+	r, g, b := c.RGB()
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 }
