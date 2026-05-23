@@ -10,6 +10,7 @@ type TaskInstance struct {
 	State           string     `json:"state"`
 	StartDate       *time.Time `json:"start_date"`
 	EndDate         *time.Time `json:"end_date"`
+	QueuedDttm      *time.Time `json:"queued_when"`
 	Duration        float64    `json:"duration"`
 	TryNumber       int        `json:"try_number"`
 	Operator        string     `json:"operator_name"`
