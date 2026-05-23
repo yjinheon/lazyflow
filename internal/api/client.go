@@ -478,6 +478,31 @@ func (c *Client) patch(ctx context.Context, endpoint string, body any, out any) 
 	return nil
 }
 
+func (c *Client) delete(ctx context.Context, endpoint string) error {
+	<-c.rateLimiter
+
+	if err := c.ensureToken(); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	c.setAuth(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return c.readError(resp)
+	}
+	return nil
+}
+
 func (c *Client) get(ctx context.Context, endpoint string, opts *ListOptions, out any) error {
 	debugutil.Tag("FZ-api", "GET %s waitRateLimiter", endpoint)
 	tWait := time.Now()
