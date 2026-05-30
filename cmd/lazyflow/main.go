@@ -86,6 +86,8 @@ func main() {
 			dags := store.GetDAGs()
 			mainLayout.DagList().Update(dags)
 			mainLayout.Header().SetInfo(cfg.Airflow.BaseURL, true, len(dags))
+			active, inactive := countDAGActivity(dags)
+			mainLayout.KpiBar().SetDAGCounts(active, inactive)
 		})
 	})
 
@@ -121,8 +123,11 @@ func main() {
 	// DAG runs updated → refresh runs view
 	store.Subscribe(state.EventDAGRunsUpdated, func(_ any) {
 		dispatcher.Post(func() {
-			runs := store.GetDAGRuns(store.SelectedDAG())
+			dagId := store.SelectedDAG()
+			runs := store.GetDAGRuns(dagId)
 			mainLayout.Runs().Update(runs)
+			running, success, failed := countRunStates(runs)
+			mainLayout.KpiBar().SetRunCounts(dagId, running, success, failed)
 		})
 	})
 
@@ -661,6 +666,31 @@ func countBackfillRuns(bf *models.Backfill, runs []models.DAGRun) {
 			bf.RunningRuns++
 		}
 	}
+}
+
+func countDAGActivity(dags []models.DAG) (active, inactive int) {
+	for _, d := range dags {
+		if d.IsPaused {
+			inactive++
+		} else {
+			active++
+		}
+	}
+	return active, inactive
+}
+
+func countRunStates(runs []models.DAGRun) (running, success, failed int) {
+	for _, r := range runs {
+		switch r.State {
+		case "running":
+			running++
+		case "success":
+			success++
+		case "failed":
+			failed++
+		}
+	}
+	return running, success, failed
 }
 
 func inDateRange(r models.DAGRun, bf *models.Backfill) bool {

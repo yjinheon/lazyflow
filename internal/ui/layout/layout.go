@@ -10,6 +10,7 @@ import (
 // Layout constants define the fixed proportions of the UI
 const (
 	HeaderHeight       = 3
+	KpiBarHeight       = 4
 	TopSectionRatio    = 40
 	BottomSectionRatio = 60
 
@@ -24,6 +25,7 @@ type MainLayout struct {
 	root *tview.Flex
 
 	header      *Header
+	kpiBar      *KpiBar
 	dagList     *views.DagListView
 	dagInfo     *views.DagInfoView
 	clusterInfo *views.ClusterInfoView
@@ -54,6 +56,7 @@ func NewMainLayout(app *tview.Application) *MainLayout {
 	m := &MainLayout{
 		app:         app,
 		header:      NewHeader(),
+		kpiBar:      NewKpiBar(),
 		dagList:     views.NewDagListView(),
 		dagInfo:     views.NewDagInfoView(),
 		clusterInfo: views.NewClusterInfoView(),
@@ -89,6 +92,7 @@ func (m *MainLayout) build() {
 
 	m.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(m.header.Root(), HeaderHeight, 0, false).
+		AddItem(m.kpiBar.Root(), KpiBarHeight, 0, false).
 		AddItem(topSection, 0, TopSectionRatio, true).
 		AddItem(m.tabBar.Root(), 1, 0, false).
 		AddItem(m.tabContent, 0, BottomSectionRatio, false).
@@ -247,3 +251,4 @@ func (m *MainLayout) Help() *views.HelpView               { return m.helpView }
 func (m *MainLayout) Execution() *views.ExecutionView     { return m.executionView }
 func (m *MainLayout) StatusBar() *StatusBar               { return m.statusBar }
 func (m *MainLayout) Header() *Header                     { return m.header }
+func (m *MainLayout) KpiBar() *KpiBar                     { return m.kpiBar }
