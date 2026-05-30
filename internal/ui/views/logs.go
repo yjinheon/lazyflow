@@ -23,6 +23,11 @@ func (v *LogsView) SetContent(text string) {
 	v.ScrollToEnd()
 }
 
+func (v *LogsView) SetMessage(msg string) {
+	v.SetText("[gray]" + tview.Escape(msg))
+	v.ScrollToBeginning()
+}
+
 func (v *LogsView) SetError(msg string) {
 	v.SetText("[red]" + tview.Escape(msg))
 	v.ScrollToEnd()

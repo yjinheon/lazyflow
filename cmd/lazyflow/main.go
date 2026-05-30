@@ -151,6 +151,9 @@ func main() {
 		dispatcher.Post(func() {
 			tasks := store.GetTasks(store.SelectedDAG())
 			mainLayout.Lineage().SetTasks(store.SelectedDAG(), tasks)
+			if store.SelectedRun() == "" {
+				mainLayout.Tasks().UpdateDefinitions(store.SelectedDAG(), tasks)
+			}
 		})
 	})
 
@@ -206,6 +209,11 @@ func main() {
 		debugutil.Tag("FZ-evt", "DagList.OnSelected START dagId=%s", dagId)
 		defer debugutil.Tag("FZ-evt", "DagList.OnSelected END dagId=%s", dagId)
 		store.SelectDAG(dagId)
+		poller.StopSub("tasks")
+		store.SetCriticalPath(nil)
+		mainLayout.Tasks().UpdateDefinitions(dagId, nil)
+		mainLayout.Logs().SetMessage("Select a DAG run and task to view logs")
+		mainLayout.Code().SetMessage("Loading DAG source...")
 
 		for _, d := range store.GetDAGs() {
 			if d.DagId == dagId {
@@ -254,6 +262,8 @@ func main() {
 		defer debugutil.Tag("FZ-evt", "Runs.OnSelected END runId=%s", runId)
 		store.SelectRun(runId)
 		dagId := store.SelectedDAG()
+		mainLayout.Tasks().Update(nil)
+		mainLayout.Logs().SetMessage("Select a task to view logs")
 
 		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
 		mainLayout.SwitchTab("tasks")
@@ -279,6 +289,11 @@ func main() {
 		store.SelectTask(taskId)
 		dagId := store.SelectedDAG()
 		runId := store.SelectedRun()
+		if runId == "" {
+			mainLayout.StatusBar().SetStatus(fmt.Sprintf("[yellow]Task %s selected. Select a DAG run to view logs.[-]", taskId))
+			mainLayout.Logs().SetMessage("Task logs require a selected DAG run")
+			return
+		}
 
 		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
 		mainLayout.SwitchTab("logs")
@@ -528,6 +543,12 @@ func main() {
 			startBackfillsPoll()
 		} else {
 			go poller.StopSub("backfills")
+		}
+	})
+	store.Subscribe(state.EventDAGSelected, func(_ any) {
+		go poller.StopSub("tasks")
+		if store.ActiveTab() == "backfills" {
+			startBackfillsPoll()
 		}
 	})
 

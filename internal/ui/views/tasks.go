@@ -18,8 +18,10 @@ type TasksView struct {
 	table *tview.Table
 	gantt *GanttView
 
-	tasks      []models.TaskInstance
-	onSelected func(taskId string)
+	taskInstances      []models.TaskInstance
+	taskDefinitions    []models.Task
+	showingDefinitions bool
+	onSelected         func(taskId string)
 }
 
 const (
@@ -50,7 +52,25 @@ func (v *TasksView) setupTable() {
 	v.table.SetFocusFunc(func() { v.table.SetBorderColor(theme.DefaultDarkTheme.BorderFocused) })
 	v.table.SetBlurFunc(func() { v.table.SetBorderColor(theme.DefaultDarkTheme.BorderColor) })
 
-	headers := []string{"Task ID", "State", "Operator", "Duration", "Try", "Start"}
+	v.renderHeaders([]string{"Task ID", "State", "Operator", "Duration", "Try", "Start"})
+
+	v.table.SetSelectedFunc(func(row, column int) {
+		if row <= 0 || v.onSelected == nil {
+			return
+		}
+		if v.showingDefinitions && row <= len(v.taskDefinitions) {
+			v.onSelected(v.taskDefinitions[row-1].TaskId)
+			return
+		}
+		if !v.showingDefinitions && row <= len(v.taskInstances) {
+			if v.onSelected != nil {
+				v.onSelected(v.taskInstances[row-1].TaskId)
+			}
+		}
+	})
+}
+
+func (v *TasksView) renderHeaders(headers []string) {
 	for i, h := range headers {
 		cell := tview.NewTableCell(h).
 			SetTextColor(tcell.ColorYellow).
@@ -61,14 +81,6 @@ func (v *TasksView) setupTable() {
 		}
 		v.table.SetCell(0, i, cell)
 	}
-
-	v.table.SetSelectedFunc(func(row, column int) {
-		if row > 0 && row <= len(v.tasks) {
-			if v.onSelected != nil {
-				v.onSelected(v.tasks[row-1].TaskId)
-			}
-		}
-	})
 }
 
 func (v *TasksView) SetOnSelected(handler func(taskId string)) {
@@ -78,7 +90,8 @@ func (v *TasksView) SetOnSelected(handler func(taskId string)) {
 // Update redraws the table view. The Gantt view is updated separately via
 // UpdateGantt; switch which is visible with SetGanttMode.
 func (v *TasksView) Update(tasks []models.TaskInstance) {
-	v.tasks = tasks
+	v.showingDefinitions = false
+	v.taskInstances = tasks
 	v.table.Clear()
 	v.setupTable()
 	if len(tasks) == 0 {
@@ -115,6 +128,51 @@ func (v *TasksView) Update(tasks []models.TaskInstance) {
 			startStr = task.StartDate.Format("01-02 15:04:05")
 		}
 		v.table.SetCell(row, 5, tview.NewTableCell(startStr).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+	}
+}
+
+// UpdateDefinitions redraws the table with DAG-level task definitions. These
+// rows do not require a DAG run and are useful before drilling into a run.
+func (v *TasksView) UpdateDefinitions(dagId string, tasks []models.Task) {
+	v.showingDefinitions = true
+	v.taskDefinitions = tasks
+	v.table.Clear()
+	v.table.SetTitle(" DAG Tasks ")
+	v.table.SetSelectable(false, false)
+	v.renderHeaders([]string{"Task ID", "Operator", "Owner", "Retries", "Trigger", "Pool", "Queue", "Downstream"})
+	if len(tasks) == 0 {
+		v.table.SetCell(1, 0, tview.NewTableCell(fmt.Sprintf("No DAG tasks loaded for %s", dagId)).
+			SetTextColor(tcell.ColorGray).
+			SetExpansion(1).
+			SetSelectable(false))
+		return
+	}
+	v.table.SetSelectable(true, false)
+
+	t := theme.DefaultDarkTheme
+	for i, task := range tasks {
+		row := i + 1
+		bg := t.PrimaryBg
+		if row%2 == 0 {
+			bg = t.TableRowAlt
+		}
+
+		v.table.SetCell(row, 0, tview.NewTableCell(task.TaskId).
+			SetTextColor(tcell.ColorWhite).SetExpansion(1).SetBackgroundColor(bg))
+		v.table.SetCell(row, 1, tview.NewTableCell(task.Operator).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.table.SetCell(row, 2, tview.NewTableCell(task.Owner).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.table.SetCell(row, 3, tview.NewTableCell(fmt.Sprintf("%.0f", task.Retries)).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.table.SetCell(row, 4, tview.NewTableCell(task.TriggerRule).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.table.SetCell(row, 5, tview.NewTableCell(task.Pool).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.table.SetCell(row, 6, tview.NewTableCell(task.Queue).
+			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.table.SetCell(row, 7, tview.NewTableCell(fmt.Sprintf("%d", len(task.DownstreamTaskIds))).
 			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
 	}
 }

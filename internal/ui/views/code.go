@@ -23,6 +23,11 @@ func (v *CodeView) SetContent(code string) {
 	v.ScrollToBeginning()
 }
 
+func (v *CodeView) SetMessage(msg string) {
+	v.SetText("[gray]" + tview.Escape(msg))
+	v.ScrollToBeginning()
+}
+
 func (v *CodeView) SetError(msg string) {
 	v.SetText("[red]" + tview.Escape(msg))
 	v.ScrollToBeginning()

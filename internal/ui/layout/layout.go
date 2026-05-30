@@ -116,12 +116,18 @@ func (m *MainLayout) ShowHelp() {
   Esc        Back to DAG list
 
 [white]Tabs[-]
-  1-9        Switch tab
+  1-9,0      Switch tab
+  B          Backfills tab
+  g          Toggle task table / Gantt
 
 [white]DAG Actions[-]
   t          Trigger DAG run
   p          Pause / Unpause DAG
   b          Backfill DAG
+
+[white]Backfill Actions[-]
+  p/u        Pause / Unpause selected backfill
+  c          Cancel selected backfill
 
 [white]DAG Filters[-]
   a          Active DAGs

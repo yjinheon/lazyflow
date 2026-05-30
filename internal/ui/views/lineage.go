@@ -43,11 +43,16 @@ func (v *LineageView) setup() {
 
 func (v *LineageView) SetTasks(dagId string, tasks []models.Task) {
 	v.tasks = tasks
+	v.details.SetText("")
 
 	root := tview.NewTreeNode(dagId).
 		SetColor(theme.DefaultDarkTheme.Accent)
 
 	v.tree.SetRoot(root).SetCurrentNode(root)
+	if len(tasks) == 0 {
+		v.details.SetText("[gray]No task lineage loaded.")
+		return
+	}
 
 	taskMap := make(map[string]models.Task)
 	for _, t := range tasks {
