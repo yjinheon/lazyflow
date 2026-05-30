@@ -31,6 +31,10 @@ func NewGanttView() *GanttView {
 // pass nil or empty map to disable highlighting.
 func (v *GanttView) Update(runId string, tis []models.TaskInstance, onCritical map[string]bool) {
 	if len(tis) == 0 {
+		if runId == "" {
+			v.SetText("[gray]Select a DAG run to view task-instance timing.")
+			return
+		}
 		v.SetText("[gray]No tasks have started yet.")
 		return
 	}
