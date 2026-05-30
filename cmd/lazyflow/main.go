@@ -136,6 +136,10 @@ func main() {
 			} else {
 				mainLayout.Tasks().Update(tis)
 			}
+			mainLayout.Execution().UpdateRun(selectedRun(store), tis, store.GetTasks(store.SelectedDAG()), store.GetCriticalPath())
+			if mainLayout.Lineage().IsGraphMode() {
+				mainLayout.Lineage().UpdateGraph(stateByTask(tis))
+			}
 		})
 		// Critical-path recompute off the UI goroutine.
 		go func() {
@@ -151,6 +155,9 @@ func main() {
 		dispatcher.Post(func() {
 			tasks := store.GetTasks(store.SelectedDAG())
 			mainLayout.Lineage().SetTasks(store.SelectedDAG(), tasks)
+			if mainLayout.Lineage().IsGraphMode() {
+				mainLayout.Lineage().UpdateGraph(stateByTask(store.GetTaskInstances(store.SelectedDAG(), store.SelectedRun())))
+			}
 			if store.SelectedRun() == "" {
 				mainLayout.Tasks().UpdateDefinitions(store.SelectedDAG(), tasks)
 			}
@@ -160,10 +167,11 @@ func main() {
 	// Critical-path changed → if gantt active, re-render
 	store.Subscribe(state.EventCriticalPathChanged, func(_ any) {
 		dispatcher.Post(func() {
+			tis := store.GetTaskInstances(store.SelectedDAG(), store.SelectedRun())
+			mainLayout.Execution().UpdateRun(selectedRun(store), tis, store.GetTasks(store.SelectedDAG()), store.GetCriticalPath())
 			if !store.GanttMode() {
 				return
 			}
-			tis := store.GetTaskInstances(store.SelectedDAG(), store.SelectedRun())
 			mainLayout.Tasks().UpdateGantt(store.SelectedRun(), tis, store.GetCriticalPath())
 		})
 	})
@@ -256,19 +264,22 @@ func main() {
 		}()
 	})
 
-	// Run selected → fetch task instances + drill down to Tasks tab
+	// Run selected -> open Execution drill-in and fetch task instances.
 	mainLayout.Runs().SetOnSelected(func(runId string) {
 		debugutil.Tag("FZ-evt", "Runs.OnSelected START runId=%s", runId)
 		defer debugutil.Tag("FZ-evt", "Runs.OnSelected END runId=%s", runId)
 		store.SelectRun(runId)
 		dagId := store.SelectedDAG()
-		mainLayout.Tasks().Update(nil)
-		mainLayout.Logs().SetMessage("Select a task to view logs")
+		run := selectedRun(store)
 
-		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
-		mainLayout.SwitchTab("tasks")
-		store.SetActiveTab("tasks")
-		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
+		mainLayout.Execution().SetLogMessage("Select a task to view logs")
+		mainLayout.Execution().UpdateRun(run,
+			store.GetTaskInstances(dagId, runId),
+			store.GetTasks(dagId),
+			store.GetCriticalPath())
+		mainLayout.ShowExecution(func() {
+			poller.StopSub("exec-logs")
+		})
 
 		go func() {
 			ctx := context.Background()
@@ -279,7 +290,54 @@ func main() {
 			}
 			log.Printf("[DATA] TaskInstances fetched: %d tasks for %s/%s", len(ti.TaskInstances), dagId, runId)
 			store.SetTaskInstances(dagId, runId, ti.TaskInstances)
+			cp := views.ComputeCriticalPath(store.GetTasks(dagId), ti.TaskInstances, time.Now())
+			store.SetCriticalPath(cp)
 		}()
+		if len(store.GetTasks(dagId)) == 0 {
+			go func() {
+				ctx := context.Background()
+				tasks, err := client.GetTasks(ctx, dagId)
+				if err != nil {
+					log.Printf("[ERROR] Execution GetTasks: %v", err)
+					return
+				}
+				store.SetTasks(dagId, tasks.Tasks)
+			}()
+		}
+	})
+
+	// Execution task selection -> fetch logs and poll while task is running.
+	mainLayout.Execution().SetOnTaskSelected(func(taskId string) {
+		store.SelectTask(taskId)
+		dagId := store.SelectedDAG()
+		runId := store.SelectedRun()
+		if runId == "" {
+			return
+		}
+		fetchLogs := func(ctx context.Context) {
+			logs, err := client.GetTaskLogs(ctx, dagId, runId, taskId, 1)
+			if err != nil {
+				log.Printf("[ERROR] Execution GetTaskLogs: %v", err)
+				dispatcher.Post(func() { mainLayout.Execution().SetLogError(err.Error()) })
+				return
+			}
+			dispatcher.Post(func() { mainLayout.Execution().SetLogs(logs) })
+		}
+		mainLayout.Execution().SetLogMessage("Loading logs...")
+		go fetchLogs(context.Background())
+
+		running := false
+		for _, ti := range store.GetTaskInstances(dagId, runId) {
+			if ti.TaskId == taskId && ti.State == "running" {
+				running = true
+				break
+			}
+		}
+		if running {
+			poller.Restart("exec-logs", 5*time.Second, fetchLogs)
+		} else {
+			poller.StopSub("exec-logs")
+		}
 	})
 
 	// Task selected → fetch logs + drill down to Logs tab
@@ -615,4 +673,23 @@ func inDateRange(r models.DAGRun, bf *models.Backfill) bool {
 		return false
 	}
 	return !r.LogicalDate.Before(bf.FromDate) && !r.LogicalDate.After(bf.ToDate)
+}
+
+func selectedRun(store *state.Store) models.DAGRun {
+	dagId := store.SelectedDAG()
+	runId := store.SelectedRun()
+	for _, r := range store.GetDAGRuns(dagId) {
+		if r.RunId == runId {
+			return r
+		}
+	}
+	return models.DAGRun{DagId: dagId, RunId: runId}
+}
+
+func stateByTask(tis []models.TaskInstance) map[string]string {
+	states := make(map[string]string, len(tis))
+	for _, ti := range tis {
+		states[ti.TaskId] = ti.State
+	}
+	return states
 }

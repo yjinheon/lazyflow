@@ -8,18 +8,27 @@ import (
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
+const (
+	lineagePageTree  = "tree"
+	lineagePageGraph = "graph"
+)
+
 type LineageView struct {
-	*tview.Flex
-	tree    *tview.TreeView
-	details *tview.TextView
-	tasks   []models.Task
+	*tview.Pages
+	treeFlex *tview.Flex
+	tree     *tview.TreeView
+	details  *tview.TextView
+	graph    *tview.TextView
+	tasks    []models.Task
 }
 
 func NewLineageView() *LineageView {
 	v := &LineageView{
-		Flex:    tview.NewFlex(),
-		tree:    tview.NewTreeView(),
-		details: tview.NewTextView(),
+		Pages:    tview.NewPages(),
+		treeFlex: tview.NewFlex(),
+		tree:     tview.NewTreeView(),
+		details:  tview.NewTextView(),
+		graph:    tview.NewTextView(),
 	}
 	v.setup()
 	return v
@@ -36,9 +45,17 @@ func (v *LineageView) setup() {
 
 	v.details.SetDynamicColors(true)
 
-	v.SetDirection(tview.FlexColumn).
+	v.treeFlex.SetDirection(tview.FlexColumn).
 		AddItem(v.tree, 0, 60, true).
 		AddItem(v.details, 0, 40, false)
+
+	v.graph.SetBorder(true).
+		SetTitle(" DAG Graph (g: tree) ").
+		SetBorderColor(theme.DefaultDarkTheme.BorderColor)
+	v.graph.SetDynamicColors(true).SetWrap(false)
+
+	v.AddPage(lineagePageTree, v.treeFlex, true, true)
+	v.AddPage(lineagePageGraph, v.graph, true, false)
 }
 
 func (v *LineageView) SetTasks(dagId string, tasks []models.Task) {
@@ -108,6 +125,45 @@ func (v *LineageView) showDetails(task models.Task) {
 	v.details.SetText(text)
 }
 
-func (v *LineageView) Root() *tview.Flex {
-	return v.Flex
+func (v *LineageView) SetGraphMode(on bool) {
+	if on {
+		v.SwitchToPage(lineagePageGraph)
+		return
+	}
+	v.SwitchToPage(lineagePageTree)
+}
+
+func (v *LineageView) IsGraphMode() bool {
+	name, _ := v.GetFrontPage()
+	return name == lineagePageGraph
+}
+
+func (v *LineageView) UpdateGraph(stateByTask map[string]string) {
+	_, _, w, _ := v.graph.GetInnerRect()
+	if w <= 0 {
+		w = 80
+	}
+	stateOf := func(id string) NodeState {
+		if stateByTask == nil {
+			return NodePending
+		}
+		return NodeStateFromTI(stateByTask[id])
+	}
+	body := renderGraph(v.tasks, stateOf, w)
+	legend := fmt.Sprintf("\n[gray]legend:[-] %s%s %s%s %s%s %s%s %s%s\n",
+		mk(theme.DefaultDarkTheme, "success"), " success ",
+		mk(theme.DefaultDarkTheme, "running"), " running ",
+		mk(theme.DefaultDarkTheme, "failed"), " failed ",
+		mk(theme.DefaultDarkTheme, "skipped"), " skipped ",
+		mk(theme.DefaultDarkTheme, ""), " pending")
+	v.graph.SetText(body + legend)
+}
+
+func mk(t theme.Theme, state string) string {
+	sym, color := t.StatusStyle(state)
+	return fmt.Sprintf("[%s]%s[-]", theme.MarkupHex(color), sym)
+}
+
+func (v *LineageView) Root() tview.Primitive {
+	return v.Pages
 }

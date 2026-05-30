@@ -18,12 +18,12 @@ var tabNames = []struct {
 	{'2', "tasks"},
 	{'3', "logs"},
 	{'4', "code"},
-	{'5', "config"},
-	{'6', "connections"},
-	{'7', "variables"},
-	{'8', "monitor"},
-	{'9', "lineage"},
-	{'0', "backfills"},
+	{'5', "lineage"},
+	{'6', "monitor"},
+	{'7', "backfills"},
+	{'8', "connections"},
+	{'9', "variables"},
+	{'0', "config"},
 }
 
 type KeyBindings struct {
@@ -31,23 +31,23 @@ type KeyBindings struct {
 	layout *layout.MainLayout
 	store  *state.Store
 
-	onRefresh          func()
-	onTrigger          func(dagId string)
-	onPause            func(dagId string)
-	onBackfill         func(dagId string)
-	onBackfillCancel   func(id int)
-	onBackfillPause    func(id int)
-	onBackfillUnpause  func(id int)
+	onRefresh         func()
+	onTrigger         func(dagId string)
+	onPause           func(dagId string)
+	onBackfill        func(dagId string)
+	onBackfillCancel  func(id int)
+	onBackfillPause   func(id int)
+	onBackfillUnpause func(id int)
 }
 
 func NewKeyBindings(app *tview.Application, l *layout.MainLayout, s *state.Store) *KeyBindings {
 	return &KeyBindings{app: app, layout: l, store: s}
 }
 
-func (kb *KeyBindings) SetOnRefresh(fn func())        { kb.onRefresh = fn }
-func (kb *KeyBindings) SetOnTrigger(fn func(string))  { kb.onTrigger = fn }
-func (kb *KeyBindings) SetOnPause(fn func(string))    { kb.onPause = fn }
-func (kb *KeyBindings) SetOnBackfill(fn func(string)) { kb.onBackfill = fn }
+func (kb *KeyBindings) SetOnRefresh(fn func())            { kb.onRefresh = fn }
+func (kb *KeyBindings) SetOnTrigger(fn func(string))      { kb.onTrigger = fn }
+func (kb *KeyBindings) SetOnPause(fn func(string))        { kb.onPause = fn }
+func (kb *KeyBindings) SetOnBackfill(fn func(string))     { kb.onBackfill = fn }
 func (kb *KeyBindings) SetOnBackfillCancel(fn func(int))  { kb.onBackfillCancel = fn }
 func (kb *KeyBindings) SetOnBackfillPause(fn func(int))   { kb.onBackfillPause = fn }
 func (kb *KeyBindings) SetOnBackfillUnpause(fn func(int)) { kb.onBackfillUnpause = fn }
@@ -66,6 +66,19 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		}
 	}()
 	debugutil.Tag("FZ-key", "handle key=%v rune=%q", event.Key(), event.Rune())
+
+	if kb.layout.IsExecutionVisible() {
+		switch event.Key() {
+		case tcell.KeyCtrlC:
+			kb.app.Stop()
+			return nil
+		case tcell.KeyEsc:
+			kb.layout.HideExecution()
+			return nil
+		default:
+			return event
+		}
+	}
 
 	// Special keys
 	switch event.Key() {
@@ -89,6 +102,12 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 			kb.app.SetFocus(kb.layout.DagList())
 		}
 		return nil
+	case tcell.KeyLeft:
+		kb.cycleTab(-1)
+		return nil
+	case tcell.KeyRight:
+		kb.cycleTab(1)
+		return nil
 	}
 
 	// Rune keys
@@ -111,8 +130,21 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
 		return nil
 	case 'g':
-		if kb.store.ActiveTab() == "tasks" {
+		switch kb.store.ActiveTab() {
+		case "tasks":
 			kb.store.SetGanttMode(!kb.store.GanttMode())
+		case "lineage":
+			on := !kb.layout.Lineage().IsGraphMode()
+			kb.layout.Lineage().SetGraphMode(on)
+			if on {
+				dagId := kb.store.SelectedDAG()
+				runId := kb.store.SelectedRun()
+				stateByTask := map[string]string{}
+				for _, ti := range kb.store.GetTaskInstances(dagId, runId) {
+					stateByTask[ti.TaskId] = ti.State
+				}
+				kb.layout.Lineage().UpdateGraph(stateByTask)
+			}
 		}
 		return nil
 
@@ -184,4 +216,21 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	return event
+}
+
+func (kb *KeyBindings) cycleTab(delta int) {
+	cur := kb.store.ActiveTab()
+	idx := 0
+	for i, t := range tabNames {
+		if t.name == cur {
+			idx = i
+			break
+		}
+	}
+	n := len(tabNames)
+	idx = ((idx+delta)%n + n) % n
+	next := tabNames[idx].name
+	kb.layout.SwitchTab(next)
+	kb.store.SetActiveTab(next)
+	kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
 }
