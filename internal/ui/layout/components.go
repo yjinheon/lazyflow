@@ -81,7 +81,8 @@ func (t *TabBar) SetActive(name string) {
 }
 
 func (t *TabBar) refresh() {
-	text := " "
+	var text strings.Builder
+	text.WriteString(" ")
 	nameMap := map[string]string{
 		"Runs": "runs", "Tasks": "tasks", "Logs": "logs",
 		"Code": "code", "Lineage": "lineage", "Monitor": "monitor",
@@ -90,16 +91,16 @@ func (t *TabBar) refresh() {
 	}
 	for _, tab := range tabLabels {
 		if tab.name == "Conns" {
-			text += "[gray]│[-] "
+			text.WriteString("[gray]│[-] ")
 		}
 		tabID := nameMap[tab.name]
 		if tabID == t.active {
-			text += fmt.Sprintf("[black:white:b] %s:%s [-:-:-] ", tab.key, tab.name)
+			text.WriteString(fmt.Sprintf("[black:white:b] %s:%s [-:-:-] ", tab.key, tab.name))
 		} else {
-			text += fmt.Sprintf("[white:-:-] %s:%s [-:-:-] ", tab.key, tab.name)
+			text.WriteString(fmt.Sprintf("[white:-:-] %s:%s [-:-:-] ", tab.key, tab.name))
 		}
 	}
-	t.SetText(text)
+	t.SetText(text.String())
 }
 
 func (t *TabBar) Root() *tview.TextView {

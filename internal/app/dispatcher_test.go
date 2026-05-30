@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -9,12 +8,11 @@ import (
 )
 
 func TestDispatcher_postRunsOnConsumer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	d := NewDispatcher(8)
 	var ran atomic.Int32
 	go d.StartGeneric(ctx, func(f func()) { f() }) // test consumer just runs f
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		d.Post(func() { ran.Add(1) })
 	}
 	deadline := time.Now().Add(time.Second)
@@ -31,7 +29,7 @@ func TestDispatcher_dropsNewestWhenFull(t *testing.T) {
 	// Do NOT start a consumer — queue stays full.
 	var wg sync.WaitGroup
 	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			defer wg.Done()
 			d.Post(func() {})
@@ -44,8 +42,7 @@ func TestDispatcher_dropsNewestWhenFull(t *testing.T) {
 }
 
 func TestDispatcher_recoversFromPanic(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	d := NewDispatcher(8)
 	var ranAfter atomic.Int32
 	go d.StartGeneric(ctx, func(f func()) {

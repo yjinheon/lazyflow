@@ -115,7 +115,7 @@ func renderXAxis(tMin, tMax time.Time, barW, labelCol int) string {
 	b.WriteString(strings.Repeat(" ", labelCol))
 	ticks := 4
 	hex := theme.GanttMarkupColor("running")
-	for i := 0; i < ticks; i++ {
+	for i := range ticks {
 		t := tMin.Add(dur * time.Duration(i) / time.Duration(ticks-1))
 		s := formatTick(t, tMax)
 		pos := i * (barW - 1) / (ticks - 1)
