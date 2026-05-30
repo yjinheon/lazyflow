@@ -112,17 +112,11 @@ func renderGraph(tasks []models.Task, stateOf func(taskId string) NodeState, wid
 	if width < graphStageWidth {
 		width = graphStageWidth
 	}
-	maxVisible := width / graphStageWidth
-	if maxVisible < 1 {
-		maxVisible = 1
-	}
+	maxVisible := max(width/graphStageWidth, 1)
 	visible := len(levels)
 	truncated := 0
 	if len(levels) > maxVisible {
-		visible = maxVisible - 1
-		if visible < 1 {
-			visible = 1
-		}
+		visible = max(maxVisible-1, 1)
 		truncated = len(levels) - visible
 	}
 

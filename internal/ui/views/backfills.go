@@ -138,10 +138,7 @@ func renderProgressBar(bf *models.Backfill, width int) string {
 	if bf.TotalRuns == 0 {
 		return strings.Repeat(string([]rune{0x2591}), width)
 	}
-	filled := bf.CompletedRuns * width / bf.TotalRuns
-	if filled > width {
-		filled = width
-	}
+	filled := min(bf.CompletedRuns*width/bf.TotalRuns, width)
 	var b strings.Builder
 	b.WriteString("[")
 	b.WriteString(theme.GanttMarkupColor("success"))

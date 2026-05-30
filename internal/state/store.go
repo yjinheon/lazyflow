@@ -1,6 +1,7 @@
 package state
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -30,11 +31,11 @@ type Store struct {
 	mu sync.RWMutex
 
 	// Data cache
-	dags          []models.DAG
-	dagRuns       map[string][]models.DAGRun       // dagId -> runs
-	taskInstances map[string][]models.TaskInstance  // "dagId/runId" -> tasks
-	health        *models.HealthInfo
-	tasks            map[string][]models.Task     // dagId → lineage
+	dags             []models.DAG
+	dagRuns          map[string][]models.DAGRun       // dagId -> runs
+	taskInstances    map[string][]models.TaskInstance // "dagId/runId" -> tasks
+	health           *models.HealthInfo
+	tasks            map[string][]models.Task // dagId → lineage
 	backfills        map[string][]models.Backfill
 	selectedBackfill int
 	ganttMode        bool
@@ -352,9 +353,7 @@ func (s *Store) GetCriticalPath() map[string]bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make(map[string]bool, len(s.criticalPath))
-	for k, v := range s.criticalPath {
-		out[k] = v
-	}
+	maps.Copy(out, s.criticalPath)
 	return out
 }
 

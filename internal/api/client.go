@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -279,15 +280,15 @@ func (c *Client) GetTaskLogs(ctx context.Context, dagId, runId, taskId string, t
 		return "", fmt.Errorf("decode log response: %w", err)
 	}
 
-	var result string
+	var result strings.Builder
 	for _, entry := range logResp.Content {
 		if entry.Timestamp != "" {
-			result += fmt.Sprintf("[%s] %s\n", entry.Timestamp, entry.Event)
+			result.WriteString(fmt.Sprintf("[%s] %s\n", entry.Timestamp, entry.Event))
 		} else {
-			result += entry.Event + "\n"
+			result.WriteString(entry.Event + "\n")
 		}
 	}
-	return result, nil
+	return result.String(), nil
 }
 
 // ---------- Health ----------

@@ -44,7 +44,7 @@ func ComputeBuckets(tis []models.TaskInstance, width int, tMax time.Time) ([]Buc
 	}
 	step := tMax.Sub(tMin) / time.Duration(width)
 	buckets := make([]Bucket, width)
-	for i := 0; i < width; i++ {
+	for i := range width {
 		buckets[i].Start = tMin.Add(step * time.Duration(i))
 		if i == width-1 {
 			buckets[i].End = tMax
