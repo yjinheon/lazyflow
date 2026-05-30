@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -40,6 +41,94 @@ func (h *Header) SetInfo(host string, connected bool, dagCount int) {
 
 func (h *Header) Root() *tview.TextView {
 	return h.TextView
+}
+
+// ---------- KPI Bar ----------
+
+type KpiBar struct {
+	root  *tview.Flex
+	cards map[string]*tview.TextView
+
+	activeDAGs   int
+	inactiveDAGs int
+	runningRuns  int
+	successRuns  int
+	failedRuns   int
+	runScope     string
+}
+
+func NewKpiBar() *KpiBar {
+	k := &KpiBar{
+		root:     tview.NewFlex().SetDirection(tview.FlexColumn),
+		cards:    make(map[string]*tview.TextView),
+		runScope: "select a DAG",
+	}
+	k.addCard("active", "Active", tcell.ColorGreen)
+	k.addCard("inactive", "Inactive", tcell.ColorYellow)
+	k.addCard("running", "Running", tcell.ColorBlue)
+	k.addCard("success", "Success", tcell.ColorGreen)
+	k.addCard("failed", "Failed", tcell.ColorRed)
+	k.refresh()
+	return k
+}
+
+func (k *KpiBar) addCard(key, title string, color tcell.Color) {
+	card := tview.NewTextView().
+		SetDynamicColors(true).
+		SetTextAlign(tview.AlignCenter)
+	card.SetBorder(true).
+		SetTitle(fmt.Sprintf(" %s ", title)).
+		SetTitleColor(color).
+		SetBorderColor(color)
+	k.cards[key] = card
+	k.root.AddItem(card, 0, 1, false)
+}
+
+func (k *KpiBar) SetDAGCounts(active, inactive int) {
+	k.activeDAGs = active
+	k.inactiveDAGs = inactive
+	k.refresh()
+}
+
+func (k *KpiBar) SetRunCounts(scope string, running, success, failed int) {
+	if scope == "" {
+		scope = "select a DAG"
+	}
+	k.runScope = scope
+	k.runningRuns = running
+	k.successRuns = success
+	k.failedRuns = failed
+	k.refresh()
+}
+
+func (k *KpiBar) refresh() {
+	k.setCard("active", "DAGs", k.activeDAGs, "green")
+	k.setCard("inactive", "DAGs", k.inactiveDAGs, "yellow")
+	k.setCard("running", k.runScope, k.runningRuns, "blue")
+	k.setCard("success", k.runScope, k.successRuns, "green")
+	k.setCard("failed", k.runScope, k.failedRuns, "red")
+}
+
+func (k *KpiBar) setCard(key, scope string, value int, color string) {
+	card, ok := k.cards[key]
+	if !ok {
+		return
+	}
+	card.SetText(fmt.Sprintf("[%s::b]%d[-::-]\n[gray]%s[-]", color, value, truncateKpiScope(scope, 20)))
+}
+
+func truncateKpiScope(scope string, max int) string {
+	if len(scope) <= max {
+		return scope
+	}
+	if max <= 3 {
+		return scope[:max]
+	}
+	return scope[:max-3] + "..."
+}
+
+func (k *KpiBar) Root() *tview.Flex {
+	return k.root
 }
 
 // ---------- TabBar ----------
