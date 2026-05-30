@@ -24,6 +24,7 @@ var tabNames = []struct {
 	{'8', "connections"},
 	{'9', "variables"},
 	{'0', "config"},
+	{'?', "help"},
 }
 
 type KeyBindings struct {
@@ -74,6 +75,19 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case tcell.KeyEsc:
 			kb.layout.HideExecution()
+			return nil
+		default:
+			return event
+		}
+	}
+
+	if kb.layout.IsModalVisible() {
+		switch event.Key() {
+		case tcell.KeyCtrlC:
+			kb.app.Stop()
+			return nil
+		case tcell.KeyEsc:
+			kb.layout.DismissModal()
 			return nil
 		default:
 			return event
@@ -212,6 +226,7 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	// Help
 	case '?':
 		kb.layout.ShowHelp()
+		kb.store.SetActiveTab("help")
 		return nil
 	}
 
