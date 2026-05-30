@@ -41,9 +41,11 @@ type MainLayout struct {
 	monitorView     *views.MonitorView
 	lineageView     *views.LineageView
 	backfillsView   *views.BackfillsView
+	helpView        *views.HelpView
 	executionView   *views.ExecutionView
 	executionOpen   bool
 	executionClose  func()
+	modalOpen       bool
 
 	tabContent *tview.Pages
 }
@@ -68,6 +70,7 @@ func NewMainLayout(app *tview.Application) *MainLayout {
 		monitorView:     views.NewMonitorView(),
 		lineageView:     views.NewLineageView(),
 		backfillsView:   views.NewBackfillsView(),
+		helpView:        views.NewHelpView(),
 		executionView:   views.NewExecutionView(),
 
 		tabContent: tview.NewPages(),
@@ -103,6 +106,7 @@ func (m *MainLayout) registerTabs() {
 	m.tabContent.AddPage("connections", m.connectionsView.Root(), true, false)
 	m.tabContent.AddPage("variables", m.variablesView.Root(), true, false)
 	m.tabContent.AddPage("config", m.configView.Root(), true, false)
+	m.tabContent.AddPage("help", m.helpView.Root(), true, false)
 }
 
 func (m *MainLayout) SwitchTab(name string) {
@@ -112,55 +116,9 @@ func (m *MainLayout) SwitchTab(name string) {
 
 // ShowHelp displays a help modal with keybinding reference.
 func (m *MainLayout) ShowHelp() {
-	helpText := `[yellow::b]Keybindings[-::-]
-
-[white]Navigation[-]
-  j/k        Up / Down
-  Enter      Select / Drill down
-  Esc        Back to DAG list
-
-[white]Tabs[-]
-  1-7        Pipeline (runs/tasks/logs/code/lineage/monitor/backfills)
-  8-9,0      Global (connections/variables/config)
-  Left/Right Prev / Next tab
-  B          Backfills
-  g          Toggle (tasks: gantt / lineage: graph)
-
-[white]DAG Actions[-]
-  t          Trigger DAG run
-  p          Pause / Unpause DAG
-  b          Backfill DAG
-
-[white]Backfill Actions[-]
-  p/u        Pause / Unpause selected backfill
-  c          Cancel selected backfill
-
-[white]DAG Filters[-]
-  a          Active DAGs
-  A          All DAGs
-  f          Failed DAGs
-
-[white]Focus[-]
-  d          DAG list
-  i          DAG info
-
-[white]General[-]
-  F5         Refresh
-  /          Search
-  ?          Help
-  Ctrl+C     Quit
-`
-	modal := tview.NewModal().
-		SetText(helpText).
-		AddButtons([]string{"Close"}).
-		SetDoneFunc(func(_ int, _ string) {
-			m.app.SetRoot(m.root, true)
-			m.app.SetFocus(m.dagList)
-		})
-	overlay := tview.NewPages().
-		AddPage("main", m.root, true, true).
-		AddPage("help", modal, true, true)
-	m.app.SetRoot(overlay, true)
+	m.SwitchTab("help")
+	m.app.SetRoot(m.root, true)
+	m.app.SetFocus(m.helpView)
 }
 
 // ShowSearch displays a search input overlay for filtering DAGs.
@@ -254,6 +212,8 @@ func (m *MainLayout) ActiveTabPrimitive() tview.Primitive {
 		return m.codeView
 	case "config":
 		return m.configView
+	case "help":
+		return m.helpView
 	case "connections":
 		return m.connectionsView
 	case "variables":
@@ -283,6 +243,7 @@ func (m *MainLayout) Variables() *views.VariablesView     { return m.variablesVi
 func (m *MainLayout) Monitor() *views.MonitorView         { return m.monitorView }
 func (m *MainLayout) Lineage() *views.LineageView         { return m.lineageView }
 func (m *MainLayout) Backfills() *views.BackfillsView     { return m.backfillsView }
+func (m *MainLayout) Help() *views.HelpView               { return m.helpView }
 func (m *MainLayout) Execution() *views.ExecutionView     { return m.executionView }
 func (m *MainLayout) StatusBar() *StatusBar               { return m.statusBar }
 func (m *MainLayout) Header() *Header                     { return m.header }
