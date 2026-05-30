@@ -112,6 +112,8 @@ func (t Theme) StatusStyle(status string) (string, tcell.Color) {
 		return "◌", t.StatusQueued
 	case "upstream_failed", "upstream":
 		return "⏸", t.StatusUpstream
+	case "skipped", "removed":
+		return "○", t.StatusSkipped
 	default:
 		return "○", t.MutedText
 	}
@@ -161,4 +163,10 @@ func GanttMarkupColor(token string) string {
 func colorHex(c tcell.Color) string {
 	r, g, b := c.RGB()
 	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+// MarkupHex converts a tcell color to a "#rrggbb" string usable inside tview
+// dynamic-color markup tags, e.g. "[#22c55e]text[-]".
+func MarkupHex(c tcell.Color) string {
+	return colorHex(c)
 }

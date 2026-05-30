@@ -41,6 +41,9 @@ type MainLayout struct {
 	monitorView     *views.MonitorView
 	lineageView     *views.LineageView
 	backfillsView   *views.BackfillsView
+	executionView   *views.ExecutionView
+	executionOpen   bool
+	executionClose  func()
 
 	tabContent *tview.Pages
 }
@@ -65,6 +68,7 @@ func NewMainLayout(app *tview.Application) *MainLayout {
 		monitorView:     views.NewMonitorView(),
 		lineageView:     views.NewLineageView(),
 		backfillsView:   views.NewBackfillsView(),
+		executionView:   views.NewExecutionView(),
 
 		tabContent: tview.NewPages(),
 	}
@@ -93,12 +97,12 @@ func (m *MainLayout) registerTabs() {
 	m.tabContent.AddPage("tasks", m.tasksView.Root(), true, false)
 	m.tabContent.AddPage("logs", m.logsView.Root(), true, false)
 	m.tabContent.AddPage("code", m.codeView.Root(), true, false)
-	m.tabContent.AddPage("config", m.configView.Root(), true, false)
+	m.tabContent.AddPage("lineage", m.lineageView.Root(), true, false)
+	m.tabContent.AddPage("monitor", m.monitorView.Root(), true, false)
+	m.tabContent.AddPage("backfills", m.backfillsView.Root(), true, false)
 	m.tabContent.AddPage("connections", m.connectionsView.Root(), true, false)
 	m.tabContent.AddPage("variables", m.variablesView.Root(), true, false)
-	m.tabContent.AddPage("monitor", m.monitorView.Root(), true, false)
-	m.tabContent.AddPage("lineage", m.lineageView.Root(), true, false)
-	m.tabContent.AddPage("backfills", m.backfillsView.Root(), true, false)
+	m.tabContent.AddPage("config", m.configView.Root(), true, false)
 }
 
 func (m *MainLayout) SwitchTab(name string) {
@@ -116,9 +120,11 @@ func (m *MainLayout) ShowHelp() {
   Esc        Back to DAG list
 
 [white]Tabs[-]
-  1-9,0      Switch tab
-  B          Backfills tab
-  g          Toggle task table / Gantt
+  1-7        Pipeline (runs/tasks/logs/code/lineage/monitor/backfills)
+  8-9,0      Global (connections/variables/config)
+  Left/Right Prev / Next tab
+  B          Backfills
+  g          Toggle (tasks: gantt / lineage: graph)
 
 [white]DAG Actions[-]
   t          Trigger DAG run
@@ -184,6 +190,45 @@ func (m *MainLayout) ShowSearch() {
 	m.app.SetFocus(input)
 }
 
+// ShowExecution opens the full-screen Live Run drill-in over the main layout.
+func (m *MainLayout) ShowExecution(onClose func()) {
+	overlay := tview.NewPages().
+		AddPage("main", m.root, true, true).
+		AddPage("execution", m.executionView.Root(), true, true)
+	m.executionOpen = true
+	m.executionClose = onClose
+
+	m.executionView.Flex.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
+		switch ev.Key() {
+		case tcell.KeyEsc:
+			m.HideExecution()
+			return nil
+		}
+		return ev
+	})
+
+	m.app.SetRoot(overlay, true)
+	m.app.SetFocus(m.executionView.TaskList())
+}
+
+// HideExecution tears the overlay down and restores the main layout.
+func (m *MainLayout) HideExecution() {
+	if !m.executionOpen {
+		return
+	}
+	onClose := m.executionClose
+	m.executionOpen = false
+	m.executionClose = nil
+	m.executionView.Flex.SetInputCapture(nil)
+	m.app.SetRoot(m.root, true)
+	m.app.SetFocus(m.runsView)
+	if onClose != nil {
+		onClose()
+	}
+}
+
+func (m *MainLayout) IsExecutionVisible() bool { return m.executionOpen }
+
 func centerPrimitive(p tview.Primitive, width, height int) tview.Primitive {
 	return tview.NewFlex().
 		AddItem(nil, 0, 1, false).
@@ -238,5 +283,6 @@ func (m *MainLayout) Variables() *views.VariablesView     { return m.variablesVi
 func (m *MainLayout) Monitor() *views.MonitorView         { return m.monitorView }
 func (m *MainLayout) Lineage() *views.LineageView         { return m.lineageView }
 func (m *MainLayout) Backfills() *views.BackfillsView     { return m.backfillsView }
+func (m *MainLayout) Execution() *views.ExecutionView     { return m.executionView }
 func (m *MainLayout) StatusBar() *StatusBar               { return m.statusBar }
 func (m *MainLayout) Header() *Header                     { return m.header }

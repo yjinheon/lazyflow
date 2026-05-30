@@ -52,12 +52,12 @@ var tabLabels = []struct {
 	{"2", "Tasks"},
 	{"3", "Logs"},
 	{"4", "Code"},
-	{"5", "Config"},
-	{"6", "Conns"},
-	{"7", "Vars"},
-	{"8", "Monitor"},
-	{"9", "Lineage"},
-	{"0", "Backfills"},
+	{"5", "Lineage"},
+	{"6", "Monitor"},
+	{"7", "Backfills"},
+	{"8", "Conns"},
+	{"9", "Vars"},
+	{"0", "Config"},
 }
 
 type TabBar struct {
@@ -84,11 +84,14 @@ func (t *TabBar) refresh() {
 	text := " "
 	nameMap := map[string]string{
 		"Runs": "runs", "Tasks": "tasks", "Logs": "logs",
-		"Code": "code", "Config": "config", "Conns": "connections",
-		"Vars": "variables", "Monitor": "monitor", "Lineage": "lineage",
-		"Backfills": "backfills",
+		"Code": "code", "Lineage": "lineage", "Monitor": "monitor",
+		"Backfills": "backfills", "Conns": "connections",
+		"Vars": "variables", "Config": "config",
 	}
 	for _, tab := range tabLabels {
+		if tab.name == "Conns" {
+			text += "[gray]│[-] "
+		}
 		tabID := nameMap[tab.name]
 		if tabID == t.active {
 			text += fmt.Sprintf("[black:white:b] %s:%s [-:-:-] ", tab.key, tab.name)
