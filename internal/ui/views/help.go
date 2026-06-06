@@ -65,6 +65,7 @@ func (v *HelpView) render() {
 	row = v.addSection(row+1, "Focus")
 	row = v.addBinding(row, "d", "DAG list")
 	row = v.addBinding(row, "i", "DAG info")
+	row = v.addBinding(row, "o", "Cluster panel (press again to toggle pool compact/table)")
 
 	row = v.addSection(row+1, "General")
 	row = v.addBinding(row, "F5", "Refresh")

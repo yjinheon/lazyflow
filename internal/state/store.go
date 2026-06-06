@@ -25,6 +25,7 @@ const (
 	EventGanttModeChanged     = "tasks_gantt_mode"
 	EventLineageUpdated       = "lineage_updated"
 	EventCriticalPathChanged  = "critical_path_changed"
+	EventPoolsUpdated         = "pools_updated"
 )
 
 type Store struct {
@@ -40,6 +41,7 @@ type Store struct {
 	selectedBackfill int
 	ganttMode        bool
 	criticalPath     map[string]bool
+	pools            []models.Pool
 
 	// Selection state
 	selectedDAG  string
@@ -172,6 +174,25 @@ func (s *Store) GetHealth() *models.HealthInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.health
+}
+
+// ---------- Pools ----------
+
+func (s *Store) SetPools(pools []models.Pool) {
+	s.mu.Lock()
+	s.pools = pools
+	s.lastRefresh["pools"] = time.Now()
+	s.mu.Unlock()
+
+	s.notify(EventPoolsUpdated, pools)
+}
+
+func (s *Store) GetPools() []models.Pool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]models.Pool, len(s.pools))
+	copy(out, s.pools)
+	return out
 }
 
 // ---------- Selection ----------

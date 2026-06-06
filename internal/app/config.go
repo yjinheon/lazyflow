@@ -37,6 +37,7 @@ type RefreshIntervals struct {
 	Tasks  string `yaml:"tasks"`
 	Logs   string `yaml:"logs"`
 	Health string `yaml:"health"`
+	Pools  string `yaml:"pools"`
 }
 
 func DefaultConfig() Config {
@@ -56,6 +57,7 @@ func DefaultConfig() Config {
 				Tasks:  "2s",
 				Logs:   "1s",
 				Health: "10s",
+				Pools:  "10s",
 			},
 		},
 	}

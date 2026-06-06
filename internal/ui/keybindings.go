@@ -181,6 +181,15 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.DagInfo())
 		return nil
 
+	// Cluster panel: focus, or toggle pool view when already focused
+	case 'o':
+		if kb.app.GetFocus() == kb.layout.ClusterInfo() {
+			kb.layout.ClusterInfo().ToggleView()
+		} else {
+			kb.app.SetFocus(kb.layout.ClusterInfo())
+		}
+		return nil
+
 	// DAG actions
 	case 't':
 		if dagId := kb.store.SelectedDAG(); dagId != "" && kb.onTrigger != nil {
