@@ -30,6 +30,7 @@ const (
 	EndpointVariables     = "/api/v2/variables"
 	EndpointAuthToken     = "/auth/token"
 	EndpointBackfills     = "/api/v2/backfills"
+	EndpointPools         = "/api/v2/pools"
 )
 
 type Client struct {

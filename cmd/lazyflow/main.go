@@ -100,6 +100,13 @@ func main() {
 		})
 	})
 
+	// Pools updated → refresh cluster panel pool bars
+	store.Subscribe(state.EventPoolsUpdated, func(_ any) {
+		dispatcher.Post(func() {
+			mainLayout.ClusterInfo().UpdatePools(store.GetPools())
+		})
+	})
+
 	// Selection → update status bar
 	// NOTE: These subscribers are called synchronously from tview's main goroutine
 	// (via SetSelectedFunc → store.Select*). dispatcher.Post is non-blocking so it
@@ -522,6 +529,7 @@ func main() {
 
 	dagInterval := app.ParseDuration(cfg.UI.RefreshIntervals.DAGs, 5*time.Second)
 	healthInterval := app.ParseDuration(cfg.UI.RefreshIntervals.Health, 10*time.Second)
+	poolsInterval := app.ParseDuration(cfg.UI.RefreshIntervals.Pools, 10*time.Second)
 	runsInterval := app.ParseDuration(cfg.UI.RefreshIntervals.Runs, 3*time.Second)
 	tasksInterval := app.ParseDuration(cfg.UI.RefreshIntervals.Tasks, 2*time.Second)
 
@@ -541,6 +549,15 @@ func main() {
 			return
 		}
 		store.SetHealth(h)
+	})
+
+	// Fixed: Pools
+	poller.Fixed(poolsInterval, true, func(ctx context.Context) {
+		pools, err := client.ListPools(ctx, &api.ListOptions{Limit: 100})
+		if err != nil {
+			return
+		}
+		store.SetPools(pools.Pools)
 	})
 
 	// Dynamic: Runs (restart on DAG selection)

@@ -102,3 +102,23 @@ func TestCriticalPath_setAndQuery(t *testing.T) {
 		t.Fatalf("GetCriticalPath=%+v", cp)
 	}
 }
+
+func TestSetPools_notifies(t *testing.T) {
+	s := NewStore()
+	var got atomic.Int32
+	s.Subscribe(EventPoolsUpdated, func(_ any) { got.Add(1) })
+	s.SetPools([]models.Pool{{Name: "default"}})
+	if got.Load() != 1 {
+		t.Fatalf("expected 1 notify, got %d", got.Load())
+	}
+}
+
+func TestGetPools_copyIsolation(t *testing.T) {
+	s := NewStore()
+	s.SetPools([]models.Pool{{Name: "default", Slots: 8}})
+	out := s.GetPools()
+	out[0].Slots = 999 // mutate caller copy
+	if again := s.GetPools(); again[0].Slots != 8 {
+		t.Fatalf("internal slice was mutated via returned copy: got %d", again[0].Slots)
+	}
+}
