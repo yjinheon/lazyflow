@@ -14,6 +14,7 @@ import (
 	"github.com/yjinheon/lazyflow/internal/app"
 	"github.com/yjinheon/lazyflow/internal/cache"
 	"github.com/yjinheon/lazyflow/internal/debugutil"
+	"github.com/yjinheon/lazyflow/internal/metrics"
 	"github.com/yjinheon/lazyflow/internal/state"
 	ui "github.com/yjinheon/lazyflow/internal/ui"
 	"github.com/yjinheon/lazyflow/internal/ui/layout"
@@ -78,12 +79,26 @@ func main() {
 	poller := app.NewPoller(context.Background())
 	defer poller.Stop()
 
+	// Lookback window for the cluster KPI bar and per-DAG run-count panel.
+	rollupWindow := app.ParseDuration(cfg.UI.RollupWindow, 168*time.Hour)
+	mainLayout.DagInfo().SetWindowLabel(windowLabel(rollupWindow))
+
+	// DagInfo run-filter mini panel → filter the Runs view and jump to it.
+	// Fires from the filter List's Enter handler on the tview main goroutine, so
+	// the layout/focus mutations below are safe to call directly.
+	mainLayout.DagInfo().SetOnFilterSelected(func(stateFilter string) {
+		mainLayout.Runs().SetStateFilter(stateFilter, time.Now().Add(-rollupWindow))
+		mainLayout.SwitchTab("runs")
+		store.SetActiveTab("runs")
+		tviewApp.SetFocus(mainLayout.Runs())
+	})
+
 	// ---------- Event wiring ----------
 
 	// DAGs updated → refresh DAG list + header count
 	store.Subscribe(state.EventDAGsUpdated, func(_ any) {
 		dispatcher.Post(func() {
-			dags := store.GetDAGs()
+			dags := withLastRunState(store.GetDAGs(), store.GetDAGStateRollup())
 			mainLayout.DagList().Update(dags)
 			mainLayout.Header().SetInfo(cfg.Airflow.BaseURL, true, len(dags))
 			active, inactive := countDAGActivity(dags)
@@ -97,6 +112,17 @@ func main() {
 			h := store.GetHealth()
 			mainLayout.ClusterInfo().Update(h)
 			mainLayout.Monitor().Update(h)
+		})
+	})
+
+	// Cluster DAG-state rollup updated → refresh KPI bar (running/success/failed
+	// DAG counts) and re-inject last-run state into the DAG list.
+	store.Subscribe(state.EventDAGStateRollupUpdated, func(_ any) {
+		dispatcher.Post(func() {
+			rollup := store.GetDAGStateRollup()
+			running, success, failed := metrics.CountByState(rollup)
+			mainLayout.KpiBar().SetDAGStateCounts(running, success, failed)
+			mainLayout.DagList().Update(withLastRunState(store.GetDAGs(), rollup))
 		})
 	})
 
@@ -133,8 +159,10 @@ func main() {
 			dagId := store.SelectedDAG()
 			runs := store.GetDAGRuns(dagId)
 			mainLayout.Runs().Update(runs)
-			running, success, failed := countRunStates(runs)
-			mainLayout.KpiBar().SetRunCounts(dagId, running, success, failed)
+			since := time.Now().Add(-rollupWindow)
+			running, success, failed := metrics.CountWindowStates(runs, since)
+			spark := views.RunSparkline(runs, 10)
+			mainLayout.DagInfo().UpdateRunStats(running, success, failed, spark)
 		})
 	})
 
@@ -231,6 +259,7 @@ func main() {
 		store.SelectDAG(dagId)
 		poller.StopSub("tasks")
 		store.SetCriticalPath(nil)
+		mainLayout.Runs().ClearFilter() // new DAG → drop any stale run-state filter
 		mainLayout.Tasks().UpdateDefinitions(dagId, nil)
 		mainLayout.Logs().SetMessage("Select a DAG run and task to view logs")
 		mainLayout.Code().SetMessage("Loading DAG source...")
@@ -542,6 +571,24 @@ func main() {
 		store.SetDAGs(dags.DAGs)
 	})
 
+	// Fixed: cluster DAG-state rollup (all DAGs, latest run state within window).
+	poller.Fixed(dagInterval, true, func(ctx context.Context) {
+		since := time.Now().Add(-rollupWindow)
+		col, err := client.GetAllDAGRuns(ctx, &api.ListOptions{
+			Limit:          1000,
+			OrderBy:        "-run_after",
+			LogicalDateGte: since,
+		})
+		if err != nil {
+			return
+		}
+		if col.TotalEntries > len(col.DAGRuns) {
+			log.Printf("[ERROR] dag-state rollup truncated: total=%d fetched=%d window=%s",
+				col.TotalEntries, len(col.DAGRuns), rollupWindow)
+		}
+		store.SetDAGStateRollup(metrics.RollupLatestState(col.DAGRuns))
+	})
+
 	// Fixed: Health
 	poller.Fixed(healthInterval, true, func(ctx context.Context) {
 		h, err := client.GetHealth(ctx)
@@ -696,18 +743,24 @@ func countDAGActivity(dags []models.DAG) (active, inactive int) {
 	return active, inactive
 }
 
-func countRunStates(runs []models.DAGRun) (running, success, failed int) {
-	for _, r := range runs {
-		switch r.State {
-		case "running":
-			running++
-		case "success":
-			success++
-		case "failed":
-			failed++
-		}
+// withLastRunState left-joins the cluster rollup onto a DAG slice, populating
+// each DAG's LastRunState (used by the DAG list's failed-row highlight). dags is
+// a fresh copy from GetDAGs, so in-place mutation is safe.
+func withLastRunState(dags []models.DAG, rollup map[string]string) []models.DAG {
+	for i := range dags {
+		dags[i].LastRunState = rollup[dags[i].DagId]
 	}
-	return running, success, failed
+	return dags
+}
+
+// windowLabel renders a lookback duration compactly: whole-day windows as "Nd",
+// otherwise the raw Go duration string.
+func windowLabel(d time.Duration) string {
+	hours := int(d.Hours())
+	if hours > 0 && hours%24 == 0 {
+		return fmt.Sprintf("%dd", hours/24)
+	}
+	return d.String()
 }
 
 func inDateRange(r models.DAGRun, bf *models.Backfill) bool {

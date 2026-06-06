@@ -29,6 +29,10 @@ type AuthConfig struct {
 type UIConfig struct {
 	Theme            string           `yaml:"theme"`
 	RefreshIntervals RefreshIntervals `yaml:"refresh_intervals"`
+	// RollupWindow is the lookback window for the cluster KPI bar and per-DAG
+	// run-count panel. Parsed by ParseDuration (Go duration; max unit "h", so
+	// 7 days = "168h").
+	RollupWindow string `yaml:"rollup_window"`
 }
 
 type RefreshIntervals struct {
@@ -59,6 +63,7 @@ func DefaultConfig() Config {
 				Health: "10s",
 				Pools:  "10s",
 			},
+			RollupWindow: "168h", // 7 days
 		},
 	}
 }

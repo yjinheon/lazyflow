@@ -7,6 +7,7 @@ type DAGRun struct {
 	RunId       string    `json:"dag_run_id"`
 	State       string    `json:"state"`
 	LogicalDate time.Time `json:"logical_date"`
+	RunAfter    time.Time `json:"run_after"`
 	StartDate   time.Time `json:"start_date"`
 	EndDate     time.Time `json:"end_date"`
 	RunType     string    `json:"run_type"`

@@ -48,6 +48,7 @@ type MainLayout struct {
 	executionOpen   bool
 	executionClose  func()
 	modalOpen       bool
+	searchOpen      bool
 
 	tabContent *tview.Pages
 }
@@ -138,19 +139,31 @@ func (m *MainLayout) ShowSearch() {
 	})
 
 	input.SetDoneFunc(func(key tcell.Key) {
-		if key == tcell.KeyEsc {
-			m.dagList.Search("")
-		}
-		m.app.SetRoot(m.root, true)
-		m.app.SetFocus(m.dagList)
+		// Esc is intercepted by the global key capture (see HideSearch); this
+		// fires for Enter/Tab, which confirm the current filter and close.
+		m.HideSearch()
 	})
 
 	overlay := tview.NewPages().
 		AddPage("main", m.root, true, true).
 		AddPage("search", centerPrimitive(input, 40, 3), true, true)
+	m.searchOpen = true
 	m.app.SetRoot(overlay, true)
 	m.app.SetFocus(input)
 }
+
+// HideSearch tears the search overlay down and restores the main layout.
+func (m *MainLayout) HideSearch() {
+	if !m.searchOpen {
+		return
+	}
+	m.searchOpen = false
+	m.app.SetRoot(m.root, true)
+	m.app.SetFocus(m.dagList)
+}
+
+// IsSearchVisible reports whether the search overlay is currently open.
+func (m *MainLayout) IsSearchVisible() bool { return m.searchOpen }
 
 // ShowExecution opens the full-screen Live Run drill-in over the main layout.
 func (m *MainLayout) ShowExecution(onClose func()) {
