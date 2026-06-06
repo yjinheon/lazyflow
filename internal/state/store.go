@@ -26,6 +26,7 @@ const (
 	EventLineageUpdated       = "lineage_updated"
 	EventCriticalPathChanged  = "critical_path_changed"
 	EventPoolsUpdated         = "pools_updated"
+	EventDAGStateRollupUpdated = "dag_state_rollup_updated"
 )
 
 type Store struct {
@@ -42,6 +43,7 @@ type Store struct {
 	ganttMode        bool
 	criticalPath     map[string]bool
 	pools            []models.Pool
+	dagStateRollup   map[string]string // dagId -> latest run state (cluster-wide)
 
 	// Selection state
 	selectedDAG  string
@@ -69,6 +71,7 @@ func NewStore() *Store {
 		backfills:        make(map[string][]models.Backfill),
 		selectedBackfill: -1,
 		criticalPath:     make(map[string]bool),
+		dagStateRollup:   make(map[string]string),
 	}
 }
 
@@ -192,6 +195,27 @@ func (s *Store) GetPools() []models.Pool {
 	defer s.mu.RUnlock()
 	out := make([]models.Pool, len(s.pools))
 	copy(out, s.pools)
+	return out
+}
+
+// ---------- DAG state rollup ----------
+
+// SetDAGStateRollup replaces the cluster-wide dagId→latest-run-state map.
+func (s *Store) SetDAGStateRollup(rollup map[string]string) {
+	s.mu.Lock()
+	s.dagStateRollup = rollup
+	s.lastRefresh["dag_state_rollup"] = time.Now()
+	s.mu.Unlock()
+
+	s.notify(EventDAGStateRollupUpdated, rollup)
+}
+
+// GetDAGStateRollup returns a defensive copy of the dagId→latest-run-state map.
+func (s *Store) GetDAGStateRollup() map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]string, len(s.dagStateRollup))
+	maps.Copy(out, s.dagStateRollup)
 	return out
 }
 

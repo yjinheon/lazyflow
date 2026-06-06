@@ -1,25 +1,36 @@
 package layout
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestTruncateKpiScope(t *testing.T) {
-	tests := []struct {
-		name  string
-		scope string
-		max   int
-		want  string
+func TestKpiBarDAGStateCounts(t *testing.T) {
+	k := NewKpiBar()
+	k.SetDAGCounts(12, 3)
+	k.SetDAGStateCounts(2, 9, 1)
+
+	cases := []struct {
+		key  string
+		want string
 	}{
-		{name: "short", scope: "dag_a", max: 20, want: "dag_a"},
-		{name: "long", scope: "very_long_dag_identifier", max: 12, want: "very_long..."},
-		{name: "tiny", scope: "abcdef", max: 2, want: "ab"},
+		{"active", "12"},
+		{"inactive", "3"},
+		{"running", "2"},
+		{"success", "9"},
+		{"failed", "1"},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := truncateKpiScope(tt.scope, tt.max)
-			if got != tt.want {
-				t.Fatalf("truncateKpiScope(%q, %d)=%q want %q", tt.scope, tt.max, got, tt.want)
-			}
-		})
+	for _, c := range cases {
+		card, ok := k.cards[c.key]
+		if !ok {
+			t.Fatalf("card %q missing", c.key)
+		}
+		got := card.GetText(true)
+		if !strings.Contains(got, c.want) {
+			t.Errorf("card %q = %q, want it to contain %q", c.key, got, c.want)
+		}
+		if !strings.Contains(got, "DAGs") {
+			t.Errorf("card %q = %q, want subtitle 'DAGs'", c.key, got)
+		}
 	}
 }

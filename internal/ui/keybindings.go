@@ -81,6 +81,22 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		}
 	}
 
+	if kb.layout.IsSearchVisible() {
+		switch event.Key() {
+		case tcell.KeyCtrlC:
+			kb.app.Stop()
+			return nil
+		case tcell.KeyEsc:
+			// Cancel the search: clear the filter and close the overlay.
+			kb.layout.DagList().Search("")
+			kb.layout.HideSearch()
+			return nil
+		default:
+			// Let the focused search input field handle typing/Enter.
+			return event
+		}
+	}
+
 	if kb.layout.IsModalVisible() {
 		switch event.Key() {
 		case tcell.KeyCtrlC:
@@ -109,12 +125,10 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.DagList())
 		return nil
 	case tcell.KeyTab:
-		focused := kb.app.GetFocus()
-		if focused == kb.layout.DagList() {
-			kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
-		} else {
-			kb.app.SetFocus(kb.layout.DagList())
-		}
+		kb.cycleFocus(1)
+		return nil
+	case tcell.KeyBacktab:
+		kb.cycleFocus(-1)
 		return nil
 	case tcell.KeyLeft:
 		kb.cycleTab(-1)
@@ -178,7 +192,7 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.DagList())
 		return nil
 	case 'i':
-		kb.app.SetFocus(kb.layout.DagInfo())
+		kb.app.SetFocus(kb.layout.DagInfo().FilterList())
 		return nil
 
 	// Cluster panel: focus, or toggle pool view when already focused
@@ -240,6 +254,40 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	return event
+}
+
+// focusRing is the ordered set of panels Tab / Shift+Tab cycle through, so every
+// panel (and thus every feature) is reachable by keyboard alone. The active
+// bottom tab is resolved dynamically since it changes with the selected tab.
+func (kb *KeyBindings) focusRing() []tview.Primitive {
+	return []tview.Primitive{
+		kb.layout.DagList(),
+		kb.layout.DagInfo().Meta(),
+		kb.layout.DagInfo().FilterList(),
+		kb.layout.ClusterInfo(),
+		kb.layout.ActiveTabPrimitive(),
+	}
+}
+
+// cycleFocus moves focus by delta (+1 Tab, -1 Shift+Tab) around focusRing. If the
+// current focus isn't in the ring (e.g. an overlay), it lands on the first stop.
+func (kb *KeyBindings) cycleFocus(delta int) {
+	ring := kb.focusRing()
+	focused := kb.app.GetFocus()
+	idx := 0
+	found := false
+	for i, p := range ring {
+		if p == focused {
+			idx = i
+			found = true
+			break
+		}
+	}
+	n := len(ring)
+	if found {
+		idx = ((idx+delta)%n + n) % n
+	}
+	kb.app.SetFocus(ring[idx])
 }
 
 func (kb *KeyBindings) cycleTab(delta int) {

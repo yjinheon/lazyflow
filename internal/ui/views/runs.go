@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -11,8 +12,11 @@ import (
 
 type RunsView struct {
 	*tview.Table
-	runs       []models.DAGRun
-	onSelected func(runId string)
+	allRuns     []models.DAGRun // unfiltered, as received from the poller
+	runs        []models.DAGRun // currently displayed (after filter)
+	stateFilter string          // "" = all
+	since       time.Time       // window cutoff for success/failed (zero = none)
+	onSelected  func(runId string)
 }
 
 func NewRunsView() *RunsView {
@@ -24,7 +28,7 @@ func NewRunsView() *RunsView {
 }
 
 func (v *RunsView) setup() {
-	v.SetBorder(true).SetTitle(" DAG Runs ")
+	v.SetBorder(true).SetTitle(v.titleText())
 	// Selectable is enabled only when Update populates data rows. With a
 	// header-only table (all cells NotSelectable), tview's draw-time clamp
 	// pushes selectedRow out of bounds, and the next Down arrow enters an
@@ -59,21 +63,76 @@ func (v *RunsView) setup() {
 	})
 }
 
+func (v *RunsView) titleText() string {
+	if v.stateFilter == "" {
+		return " DAG Runs "
+	}
+	return fmt.Sprintf(" DAG Runs <%s> ", v.stateFilter)
+}
+
 func (v *RunsView) SetOnSelected(handler func(runId string)) {
 	v.onSelected = handler
 }
 
+// SetStateFilter narrows the displayed runs to a single state. The window
+// (since) applies to success/failed only — running is current by definition —
+// matching metrics.CountWindowStates so the DagInfo counts equal the row count.
+func (v *RunsView) SetStateFilter(state string, since time.Time) {
+	v.stateFilter = state
+	v.since = since
+	v.applyFilter()
+	v.render()
+}
+
+// ClearFilter removes any active state filter.
+func (v *RunsView) ClearFilter() {
+	v.stateFilter = ""
+	v.since = time.Time{}
+	v.applyFilter()
+	v.render()
+}
+
 func (v *RunsView) Update(runs []models.DAGRun) {
-	v.runs = runs
+	v.allRuns = runs
+	v.applyFilter()
+	v.render()
+}
+
+func (v *RunsView) applyFilter() {
+	if v.stateFilter == "" {
+		v.runs = v.allRuns
+		return
+	}
+	var out []models.DAGRun
+	for _, r := range v.allRuns {
+		if r.State != v.stateFilter {
+			continue
+		}
+		if v.stateFilter != "running" && !v.since.IsZero() && runRecency(r).Before(v.since) {
+			continue
+		}
+		out = append(out, r)
+	}
+	v.runs = out
+}
+
+func runRecency(r models.DAGRun) time.Time {
+	if !r.RunAfter.IsZero() {
+		return r.RunAfter
+	}
+	return r.LogicalDate
+}
+
+func (v *RunsView) render() {
 	v.Clear()
 	v.setup()
-	if len(runs) == 0 {
+	if len(v.runs) == 0 {
 		return // keep table non-selectable while empty (see setup comment)
 	}
 	v.SetSelectable(true, false)
 
 	t := theme.DefaultDarkTheme
-	for i, run := range runs {
+	for i, run := range v.runs {
 		row := i + 1
 		bg := t.PrimaryBg
 		if row%2 == 0 {

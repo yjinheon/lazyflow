@@ -20,6 +20,7 @@ import (
 const (
 	EndpointDAGs          = "/api/v2/dags"
 	EndpointDAGRuns       = "/api/v2/dags/%s/dagRuns"
+	EndpointAllDAGRuns    = "/api/v2/dags/~/dagRuns"
 	EndpointTaskInstances = "/api/v2/dags/%s/dagRuns/%s/taskInstances"
 	EndpointTasks         = "/api/v2/dags/%s/tasks"
 	EndpointTaskLogs      = "/api/v2/dags/%s/dagRuns/%s/taskInstances/%s/logs/%d"
@@ -85,11 +86,15 @@ func NewClient(cfg ClientConfig) *Client {
 	return c
 }
 
-// ListOptions controls pagination and ordering for list endpoints.
+// ListOptions controls pagination, ordering, and filtering for list endpoints.
 type ListOptions struct {
 	Limit   int
 	Offset  int
 	OrderBy string
+	// State filters dag runs by a single state (e.g. "running"). Empty = no filter.
+	State string
+	// LogicalDateGte filters dag runs to logical_date >= this instant. Zero = no filter.
+	LogicalDateGte time.Time
 }
 
 func (o *ListOptions) apply(q url.Values) {
@@ -104,6 +109,12 @@ func (o *ListOptions) apply(q url.Values) {
 	}
 	if o.OrderBy != "" {
 		q.Set("order_by", o.OrderBy)
+	}
+	if o.State != "" {
+		q.Set("state", o.State)
+	}
+	if !o.LogicalDateGte.IsZero() {
+		q.Set("logical_date_gte", o.LogicalDateGte.UTC().Format(time.RFC3339))
 	}
 }
 
@@ -202,6 +213,16 @@ func (c *Client) GetDAGRuns(ctx context.Context, dagId string, opts *ListOptions
 	var out models.DAGRunCollection
 	endpoint := fmt.Sprintf(EndpointDAGRuns, dagId)
 	if err := c.get(ctx, endpoint, opts, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAllDAGRuns lists dag runs across all DAGs via the "~" wildcard endpoint.
+// Used to compute cluster-wide latest-run-state rollups without per-DAG calls.
+func (c *Client) GetAllDAGRuns(ctx context.Context, opts *ListOptions) (*models.DAGRunCollection, error) {
+	var out models.DAGRunCollection
+	if err := c.get(ctx, EndpointAllDAGRuns, opts, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

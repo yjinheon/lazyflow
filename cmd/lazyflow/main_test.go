@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
@@ -19,17 +20,28 @@ func TestCountDAGActivity(t *testing.T) {
 	}
 }
 
-func TestCountRunStates(t *testing.T) {
-	runs := []models.DAGRun{
-		{State: "running"},
-		{State: "success"},
-		{State: "failed"},
-		{State: "queued"},
-		{State: "success"},
+func TestWindowLabel(t *testing.T) {
+	cases := []struct {
+		in   time.Duration
+		want string
+	}{
+		{168 * time.Hour, "7d"},
+		{336 * time.Hour, "14d"},
+		{36 * time.Hour, "36h0m0s"},
 	}
+	for _, c := range cases {
+		if got := windowLabel(c.in); got != c.want {
+			t.Errorf("windowLabel(%s) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
 
-	running, success, failed := countRunStates(runs)
-	if running != 1 || success != 2 || failed != 1 {
-		t.Fatalf("countRunStates() running=%d success=%d failed=%d, want running=1 success=2 failed=1", running, success, failed)
+func TestWithLastRunState(t *testing.T) {
+	dags := []models.DAG{{DagId: "a"}, {DagId: "b"}, {DagId: "c"}}
+	rollup := map[string]string{"a": "failed", "b": "success"}
+	got := withLastRunState(dags, rollup)
+	if got[0].LastRunState != "failed" || got[1].LastRunState != "success" || got[2].LastRunState != "" {
+		t.Fatalf("withLastRunState states = %q/%q/%q, want failed/success/empty",
+			got[0].LastRunState, got[1].LastRunState, got[2].LastRunState)
 	}
 }

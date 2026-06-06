@@ -9,8 +9,8 @@ type HealthInfo struct {
 }
 
 type HealthStatus struct {
-	Status                       string `json:"status"`
-	LatestSchedulerHeartbeat     string `json:"latest_scheduler_heartbeat,omitempty"`
-	LatestTriggererHeartbeat     string `json:"latest_triggerer_heartbeat,omitempty"`
-	LatestDagProcessorHeartbeat  string `json:"latest_dag_processor_heartbeat,omitempty"`
+	Status                      string `json:"status"`
+	LatestSchedulerHeartbeat    string `json:"latest_scheduler_heartbeat,omitempty"`
+	LatestTriggererHeartbeat    string `json:"latest_triggerer_heartbeat,omitempty"`
+	LatestDagProcessorHeartbeat string `json:"latest_dag_processor_heartbeat,omitempty"`
 }

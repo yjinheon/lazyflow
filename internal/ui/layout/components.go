@@ -45,26 +45,28 @@ func (h *Header) Root() *tview.TextView {
 
 // ---------- KPI Bar ----------
 
+// KpiBar is the cluster-wide overview at the top of the screen. All five cards
+// are DAG counts and are independent of the current selection:
+//   - active/inactive: paused vs unpaused DAGs
+//   - running/success/failed: DAGs bucketed by their latest run's state
 type KpiBar struct {
 	root  *tview.Flex
 	cards map[string]*tview.TextView
 
 	activeDAGs   int
 	inactiveDAGs int
-	runningRuns  int
-	successRuns  int
-	failedRuns   int
-	runScope     string
+	runningDAGs  int
+	successDAGs  int
+	failedDAGs   int
 }
 
 func NewKpiBar() *KpiBar {
 	k := &KpiBar{
-		root:     tview.NewFlex().SetDirection(tview.FlexColumn),
-		cards:    make(map[string]*tview.TextView),
-		runScope: "select a DAG",
+		root:  tview.NewFlex().SetDirection(tview.FlexColumn),
+		cards: make(map[string]*tview.TextView),
 	}
 	k.addCard("active", "Active", tcell.ColorGreen)
-	k.addCard("inactive", "Inactive", tcell.ColorYellow)
+	k.addCard("inactive", "Paused", tcell.ColorYellow)
 	k.addCard("running", "Running", tcell.ColorBlue)
 	k.addCard("success", "Success", tcell.ColorGreen)
 	k.addCard("failed", "Failed", tcell.ColorRed)
@@ -90,41 +92,29 @@ func (k *KpiBar) SetDAGCounts(active, inactive int) {
 	k.refresh()
 }
 
-func (k *KpiBar) SetRunCounts(scope string, running, success, failed int) {
-	if scope == "" {
-		scope = "select a DAG"
-	}
-	k.runScope = scope
-	k.runningRuns = running
-	k.successRuns = success
-	k.failedRuns = failed
+// SetDAGStateCounts sets the cluster-wide DAG counts bucketed by latest run
+// state. Each DAG contributes to at most one of running/success/failed.
+func (k *KpiBar) SetDAGStateCounts(running, success, failed int) {
+	k.runningDAGs = running
+	k.successDAGs = success
+	k.failedDAGs = failed
 	k.refresh()
 }
 
 func (k *KpiBar) refresh() {
-	k.setCard("active", "DAGs", k.activeDAGs, "green")
-	k.setCard("inactive", "DAGs", k.inactiveDAGs, "yellow")
-	k.setCard("running", k.runScope, k.runningRuns, "blue")
-	k.setCard("success", k.runScope, k.successRuns, "green")
-	k.setCard("failed", k.runScope, k.failedRuns, "red")
+	k.setCard("active", k.activeDAGs, "green")
+	k.setCard("inactive", k.inactiveDAGs, "yellow")
+	k.setCard("running", k.runningDAGs, "blue")
+	k.setCard("success", k.successDAGs, "green")
+	k.setCard("failed", k.failedDAGs, "red")
 }
 
-func (k *KpiBar) setCard(key, scope string, value int, color string) {
+func (k *KpiBar) setCard(key string, value int, color string) {
 	card, ok := k.cards[key]
 	if !ok {
 		return
 	}
-	card.SetText(fmt.Sprintf("[%s::b]%d[-::-]\n[gray]%s[-]", color, value, truncateKpiScope(scope, 20)))
-}
-
-func truncateKpiScope(scope string, max int) string {
-	if len(scope) <= max {
-		return scope
-	}
-	if max <= 3 {
-		return scope[:max]
-	}
-	return scope[:max-3] + "..."
+	card.SetText(fmt.Sprintf("[%s::b]%d[-::-]\n[gray]DAGs[-]", color, value))
 }
 
 func (k *KpiBar) Root() *tview.Flex {
