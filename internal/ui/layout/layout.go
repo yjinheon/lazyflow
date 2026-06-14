@@ -44,9 +44,11 @@ type MainLayout struct {
 	lineageView     *views.LineageView
 	backfillsView   *views.BackfillsView
 	helpView        *views.HelpView
-	executionView   *views.ExecutionView
-	executionOpen   bool
-	executionClose  func()
+	executionView     *views.ExecutionView
+	executionOpen     bool
+	executionClose    func()
+	executionEmbedded bool
+	prevTab           string
 	modalOpen       bool
 	searchOpen      bool
 
@@ -165,11 +167,20 @@ func (m *MainLayout) HideSearch() {
 // IsSearchVisible reports whether the search overlay is currently open.
 func (m *MainLayout) IsSearchVisible() bool { return m.searchOpen }
 
-// ShowExecution opens the full-screen Live Run drill-in over the main layout.
+// SetExecutionEmbedded selects how the run drill-in is mounted. When true, the
+// execution view is registered as a page inside the bottom tab area and shown
+// via tab switching (SPA-style); when false it overlays the whole screen.
+// Must be called before the first ShowExecution.
+func (m *MainLayout) SetExecutionEmbedded(embedded bool) {
+	if embedded && !m.executionEmbedded {
+		m.tabContent.AddPage("execution", m.executionView.Root(), true, false)
+	}
+	m.executionEmbedded = embedded
+}
+
+// ShowExecution opens the Live Run drill-in. In embedded mode it switches the
+// bottom tab area to the execution page; otherwise it overlays the full screen.
 func (m *MainLayout) ShowExecution(onClose func()) {
-	overlay := tview.NewPages().
-		AddPage("main", m.root, true, true).
-		AddPage("execution", m.executionView.Root(), true, true)
 	m.executionOpen = true
 	m.executionClose = onClose
 
@@ -182,11 +193,21 @@ func (m *MainLayout) ShowExecution(onClose func()) {
 		return ev
 	})
 
+	if m.executionEmbedded {
+		m.prevTab = m.tabBar.Active()
+		m.tabContent.SwitchToPage("execution")
+		m.app.SetFocus(m.executionView.TaskList())
+		return
+	}
+
+	overlay := tview.NewPages().
+		AddPage("main", m.root, true, true).
+		AddPage("execution", m.executionView.Root(), true, true)
 	m.app.SetRoot(overlay, true)
 	m.app.SetFocus(m.executionView.TaskList())
 }
 
-// HideExecution tears the overlay down and restores the main layout.
+// HideExecution tears the drill-in down and restores the main layout.
 func (m *MainLayout) HideExecution() {
 	if !m.executionOpen {
 		return
@@ -195,8 +216,19 @@ func (m *MainLayout) HideExecution() {
 	m.executionOpen = false
 	m.executionClose = nil
 	m.executionView.Flex.SetInputCapture(nil)
-	m.app.SetRoot(m.root, true)
-	m.app.SetFocus(m.runsView)
+
+	if m.executionEmbedded {
+		tab := m.prevTab
+		if tab == "" || tab == "execution" {
+			tab = "runs"
+		}
+		m.SwitchTab(tab)
+		m.app.SetFocus(m.runsView)
+	} else {
+		m.app.SetRoot(m.root, true)
+		m.app.SetFocus(m.runsView)
+	}
+
 	if onClose != nil {
 		onClose()
 	}

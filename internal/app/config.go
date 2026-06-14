@@ -33,6 +33,10 @@ type UIConfig struct {
 	// run-count panel. Parsed by ParseDuration (Go duration; max unit "h", so
 	// 7 days = "168h").
 	RollupWindow string `yaml:"rollup_window"`
+	// ExecutionLayout controls how the run drill-in is mounted:
+	//   "fullscreen" (default) — overlays the whole screen
+	//   "embedded"             — mounts inside the bottom tab area, SPA-style
+	ExecutionLayout string `yaml:"execution_layout"`
 }
 
 type RefreshIntervals struct {
@@ -63,7 +67,8 @@ func DefaultConfig() Config {
 				Health: "10s",
 				Pools:  "10s",
 			},
-			RollupWindow: "168h", // 7 days
+			RollupWindow:    "168h", // 7 days
+			ExecutionLayout: "fullscreen",
 		},
 	}
 }

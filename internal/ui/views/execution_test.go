@@ -38,3 +38,47 @@ func TestSummarizeEmpty(t *testing.T) {
 		t.Errorf("empty summary not zeroed: %+v", s)
 	}
 }
+
+// TestUpdateRunPreservesSelection guards the fix for the bug where a periodic
+// "tasks" poll snapped the task-list selection back to the first row.
+func TestUpdateRunPreservesSelection(t *testing.T) {
+	v := NewExecutionView()
+	run := models.DAGRun{RunId: "run-1"}
+	tis := []models.TaskInstance{
+		{TaskId: "a", State: "success"},
+		{TaskId: "b", State: "running"},
+		{TaskId: "c", State: "queued"},
+	}
+
+	// First load selects the first row.
+	v.UpdateRun(run, tis, nil, nil)
+	if r, _ := v.taskList.GetSelection(); r != 1 {
+		t.Fatalf("initial selection row = %d, want 1", r)
+	}
+
+	// User moves to the third task.
+	v.taskList.Select(3, 0)
+
+	// A poll refresh of the same run must keep the user on task "c".
+	v.UpdateRun(run, tis, nil, nil)
+	if r, _ := v.taskList.GetSelection(); r != 3 {
+		t.Errorf("selection after refresh = %d, want 3 (preserved)", r)
+	}
+
+	// Even if the task order changes, selection follows the TaskId.
+	reordered := []models.TaskInstance{
+		{TaskId: "c", State: "queued"},
+		{TaskId: "a", State: "success"},
+		{TaskId: "b", State: "running"},
+	}
+	v.UpdateRun(run, reordered, nil, nil)
+	if r, _ := v.taskList.GetSelection(); r != 1 {
+		t.Errorf("selection after reorder = %d, want 1 (follows TaskId 'c')", r)
+	}
+
+	// Switching to a different run resets to the first row.
+	v.UpdateRun(models.DAGRun{RunId: "run-2"}, tis, nil, nil)
+	if r, _ := v.taskList.GetSelection(); r != 1 {
+		t.Errorf("selection after run change = %d, want 1 (reset)", r)
+	}
+}

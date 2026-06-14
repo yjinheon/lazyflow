@@ -65,6 +65,7 @@ func main() {
 
 	theme.ApplyTheme(theme.DefaultDarkTheme)
 	mainLayout := layout.NewMainLayout(tviewApp)
+	mainLayout.SetExecutionEmbedded(cfg.UI.ExecutionLayout == "embedded")
 	store := state.NewStore()
 
 	client := api.NewClient(api.ClientConfig{
