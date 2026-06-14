@@ -160,6 +160,9 @@ func (t *TabBar) SetActive(name string) {
 	t.refresh()
 }
 
+// Active returns the currently highlighted tab id.
+func (t *TabBar) Active() string { return t.active }
+
 func (t *TabBar) refresh() {
 	var text strings.Builder
 	text.WriteString(" ")

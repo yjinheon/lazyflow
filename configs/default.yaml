@@ -17,3 +17,6 @@ ui:
   # Lookback window for cluster KPI bar + per-DAG run counts.
   # Go duration (max unit 'h'); 7 days = 168h, 14 days = 336h.
   rollup_window: '168h'
+  # How the run drill-in is mounted: 'fullscreen' (overlay) or 'embedded'
+  # (inside the bottom tab area, SPA-style).
+  execution_layout: 'embedded'

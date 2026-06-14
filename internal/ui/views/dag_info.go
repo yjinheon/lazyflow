@@ -188,7 +188,8 @@ func (v *DagInfoView) renderMeta() {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b,
+	fmt.Fprintf(
+		&b,
 		"[yellow]DAG ID:[-]    %s\n"+
 			"[yellow]State:[-]     [%s]%s[-]\n"+
 			"[yellow]Owner:[-]     %s\n"+

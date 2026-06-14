@@ -120,6 +120,17 @@ func (v *ExecutionView) Root() tview.Primitive                    { return v.Fle
 func (v *ExecutionView) TaskList() *tview.Table                   { return v.taskList }
 
 func (v *ExecutionView) UpdateRun(run models.DAGRun, tis []models.TaskInstance, defs []models.Task, onCritical map[string]bool) {
+	// Preserve the user's current selection across poll-driven refreshes.
+	// Only reset to the first task when the run itself changes; otherwise the
+	// periodic "tasks" poll would snap the selection back to row 1 every tick.
+	sameRun := v.runId == run.RunId
+	prevTaskId := ""
+	if sameRun {
+		if r, _ := v.taskList.GetSelection(); r > 0 && r <= len(v.tasks) {
+			prevTaskId = v.tasks[r-1].TaskId
+		}
+	}
+
 	v.runId = run.RunId
 	v.tasks = tis
 	v.defs = defs
@@ -127,12 +138,25 @@ func (v *ExecutionView) UpdateRun(run models.DAGRun, tis []models.TaskInstance, 
 	v.renderTaskList(tis)
 	v.renderMiniDAG()
 	v.gantt.Update(run.RunId, tis, onCritical)
-	if len(tis) > 0 {
-		v.taskList.Select(1, 0)
-		v.renderDetail(tis[0])
-	} else {
+
+	if len(tis) == 0 {
 		v.detail.SetText("[gray]No task instances loaded.")
+		return
 	}
+
+	// Re-select the previously selected task by id so the choice survives
+	// reordering; fall back to the first row for a new run or if it vanished.
+	row := 1
+	if prevTaskId != "" {
+		for i, ti := range tis {
+			if ti.TaskId == prevTaskId {
+				row = i + 1
+				break
+			}
+		}
+	}
+	v.taskList.Select(row, 0)
+	v.renderDetail(tis[row-1])
 }
 
 func (v *ExecutionView) renderSummary(run models.DAGRun, tis []models.TaskInstance) {
