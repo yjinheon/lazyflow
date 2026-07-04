@@ -55,9 +55,6 @@ func main() {
 	dispatcher := app.NewDispatcher(256)
 	go dispatcher.Start(context.Background(), tviewApp)
 
-	bfCache := cache.NewMemory(30 * time.Second)
-	defer bfCache.Close()
-
 	cfg, err := app.LoadConfig()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -67,6 +64,8 @@ func main() {
 	mainLayout := layout.NewMainLayout(tviewApp)
 	mainLayout.SetExecutionEmbedded(cfg.UI.ExecutionLayout == "embedded")
 	store := state.NewStore()
+	bfCache := newHistoryCache(cfg)
+	defer bfCache.Close()
 
 	client := api.NewClient(api.ClientConfig{
 		BaseURL:  cfg.Airflow.BaseURL,
@@ -281,6 +280,7 @@ func main() {
 				return
 			}
 			log.Printf("[DATA] DAGRuns fetched: %d runs for %s", len(runs.DAGRuns), dagId)
+			bfCache.PutDAGRuns(dagId, runs.DAGRuns)
 			store.SetDAGRuns(dagId, runs.DAGRuns)
 		}()
 
@@ -331,6 +331,7 @@ func main() {
 				return
 			}
 			log.Printf("[DATA] TaskInstances fetched: %d tasks for %s/%s", len(ti.TaskInstances), dagId, runId)
+			bfCache.PutTaskInstances(dagId, runId, ti.TaskInstances)
 			store.SetTaskInstances(dagId, runId, ti.TaskInstances)
 			cp := views.ComputeCriticalPath(store.GetTasks(dagId), ti.TaskInstances, time.Now())
 			store.SetCriticalPath(cp)
@@ -587,6 +588,7 @@ func main() {
 			log.Printf("[ERROR] dag-state rollup truncated: total=%d fetched=%d window=%s",
 				col.TotalEntries, len(col.DAGRuns), rollupWindow)
 		}
+		cacheDAGRunsByDAG(bfCache, col.DAGRuns)
 		store.SetDAGStateRollup(metrics.RollupLatestState(col.DAGRuns))
 	})
 
@@ -616,6 +618,7 @@ func main() {
 			if err != nil {
 				return
 			}
+			bfCache.PutDAGRuns(dagId, runs.DAGRuns)
 			store.SetDAGRuns(dagId, runs.DAGRuns)
 		})
 	})
@@ -629,6 +632,7 @@ func main() {
 			if err != nil {
 				return
 			}
+			bfCache.PutTaskInstances(dagId, runId, ti.TaskInstances)
 			store.SetTaskInstances(dagId, runId, ti.TaskInstances)
 		})
 	})
@@ -785,6 +789,38 @@ func selectedRun(store *state.Store) models.DAGRun {
 		}
 	}
 	return models.DAGRun{DagId: dagId, RunId: runId}
+}
+
+func newHistoryCache(cfg app.Config) cache.Cache {
+	if !cfg.Cache.Enabled {
+		return cache.NewMemory(30 * time.Second)
+	}
+	retention := app.ParseDuration(cfg.Cache.Retention, 30*24*time.Hour)
+	c, err := cache.NewSQLite(cfg.Cache.Path, cache.Options{
+		Retention:   retention,
+		WriteBuffer: cfg.Cache.WriteBuffer,
+	})
+	if err == nil {
+		return c
+	}
+	if !cfg.Cache.FallbackToMemory {
+		log.Fatalf("sqlite cache: %v", err)
+	}
+	log.Printf("[ERROR] sqlite cache disabled, falling back to memory: %v", err)
+	return cache.NewMemory(30 * time.Second)
+}
+
+func cacheDAGRunsByDAG(c cache.Cache, runs []models.DAGRun) {
+	byDAG := make(map[string][]models.DAGRun)
+	for _, run := range runs {
+		if run.DagId == "" {
+			continue
+		}
+		byDAG[run.DagId] = append(byDAG[run.DagId], run)
+	}
+	for dagId, dagRuns := range byDAG {
+		c.PutDAGRuns(dagId, dagRuns)
+	}
 }
 
 func stateByTask(tis []models.TaskInstance) map[string]string {

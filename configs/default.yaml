@@ -6,6 +6,13 @@ airflow:
     username: 'airflow'
     password: 'airflow'
 
+cache:
+  enabled: true
+  path: '~/.cache/lazyflow/cache.db'
+  retention: '720h' # 30 days
+  write_buffer: 256
+  fallback_to_memory: true
+
 ui:
   theme: dark
   refresh_intervals:

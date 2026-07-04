@@ -5,12 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
 	Airflow AirflowConfig `yaml:"airflow"`
 	UI      UIConfig      `yaml:"ui"`
+	Cache   CacheConfig   `yaml:"cache"`
 }
 
 type AirflowConfig struct {
@@ -24,6 +26,14 @@ type AuthConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	Token    string `yaml:"token"`
+}
+
+type CacheConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	Path             string `yaml:"path"`
+	Retention        string `yaml:"retention"`
+	WriteBuffer      int    `yaml:"write_buffer"`
+	FallbackToMemory bool   `yaml:"fallback_to_memory"`
 }
 
 type UIConfig struct {
@@ -69,6 +79,13 @@ func DefaultConfig() Config {
 			},
 			RollupWindow:    "168h", // 7 days
 			ExecutionLayout: "fullscreen",
+		},
+		Cache: CacheConfig{
+			Enabled:          true,
+			Path:             "~/.cache/lazyflow/cache.db",
+			Retention:        "720h", // 30 days
+			WriteBuffer:      256,
+			FallbackToMemory: true,
 		},
 	}
 }
