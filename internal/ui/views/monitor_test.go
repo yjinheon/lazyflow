@@ -2,6 +2,7 @@ package views
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,25 @@ func TestMonitorView_rendersSections(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", want, txt)
 		}
 	}
+}
+
+// TestMonitorView_windowRace exercises concurrent Window()/CycleWindow() the way
+// refreshMonitor (poller goroutine) and the '['/']' keybinding (main goroutine)
+// do. Run with -race to catch unsynchronized windowIdx access.
+func TestMonitorView_windowRace(t *testing.T) {
+	v := NewMonitorView()
+	var wg sync.WaitGroup
+	for g := 0; g < 4; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				v.CycleWindow(1)
+				_ = v.Window()
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestMonitorView_cycleWindow(t *testing.T) {
