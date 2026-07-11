@@ -39,6 +39,8 @@ type KeyBindings struct {
 	onBackfillCancel  func(id int)
 	onBackfillPause   func(id int)
 	onBackfillUnpause func(id int)
+	onMonitorWindow   func(delta int)
+	onMonitorRefresh  func()
 }
 
 func NewKeyBindings(app *tview.Application, l *layout.MainLayout, s *state.Store) *KeyBindings {
@@ -52,6 +54,8 @@ func (kb *KeyBindings) SetOnBackfill(fn func(string))     { kb.onBackfill = fn }
 func (kb *KeyBindings) SetOnBackfillCancel(fn func(int))  { kb.onBackfillCancel = fn }
 func (kb *KeyBindings) SetOnBackfillPause(fn func(int))   { kb.onBackfillPause = fn }
 func (kb *KeyBindings) SetOnBackfillUnpause(fn func(int)) { kb.onBackfillUnpause = fn }
+func (kb *KeyBindings) SetOnMonitorWindow(fn func(int))   { kb.onMonitorWindow = fn }
+func (kb *KeyBindings) SetOnMonitorRefresh(fn func())     { kb.onMonitorRefresh = fn }
 
 // Install registers the global input capture on the tview application.
 func (kb *KeyBindings) Install() {
@@ -238,6 +242,23 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 			if id := kb.store.SelectedBackfill(); id > 0 && kb.onBackfillUnpause != nil {
 				kb.onBackfillUnpause(id)
 			}
+		}
+		return nil
+
+	// Monitor tab window / refresh (only while the monitor tab is active)
+	case '[':
+		if kb.store.ActiveTab() == "monitor" && kb.onMonitorWindow != nil {
+			kb.onMonitorWindow(-1)
+		}
+		return nil
+	case ']':
+		if kb.store.ActiveTab() == "monitor" && kb.onMonitorWindow != nil {
+			kb.onMonitorWindow(1)
+		}
+		return nil
+	case 'r':
+		if kb.store.ActiveTab() == "monitor" && kb.onMonitorRefresh != nil {
+			kb.onMonitorRefresh()
 		}
 		return nil
 
