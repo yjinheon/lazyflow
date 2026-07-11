@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rivo/tview"
@@ -111,7 +112,6 @@ func main() {
 		dispatcher.Post(func() {
 			h := store.GetHealth()
 			mainLayout.ClusterInfo().Update(h)
-			mainLayout.Monitor().Update(h)
 		})
 	})
 
@@ -131,6 +131,80 @@ func main() {
 		dispatcher.Post(func() {
 			mainLayout.ClusterInfo().UpdatePools(store.GetPools())
 		})
+	})
+
+	// ----- Monitor tab (per-DAG dashboard) -----
+	// backfilledDAGs guards a one-shot bounded history backfill per DAG per
+	// session, so entering a DAG the first time fills the window from the API
+	// rather than waiting for runtime accumulation.
+	var monitorMu sync.Mutex
+	backfilledDAGs := map[string]bool{}
+
+	backfillMonitorHistory := func(dagId string) {
+		monitorMu.Lock()
+		done := backfilledDAGs[dagId]
+		backfilledDAGs[dagId] = true
+		monitorMu.Unlock()
+		if done {
+			return
+		}
+		ctx := context.Background()
+		oldest := time.Now().Add(-30 * 24 * time.Hour)
+		total := 0
+		for page := 0; page < 5; page++ {
+			res, err := client.GetDAGRuns(ctx, dagId, &api.ListOptions{
+				Limit: 100, Offset: page * 100, OrderBy: "-run_after",
+			})
+			if err != nil {
+				log.Printf("[ERROR] monitor backfill %s: %v", dagId, err)
+				return
+			}
+			if len(res.DAGRuns) == 0 {
+				return
+			}
+			bfCache.PutDAGRuns(dagId, res.DAGRuns)
+			total += len(res.DAGRuns)
+			last := res.DAGRuns[len(res.DAGRuns)-1]
+			if total >= 500 || (!last.RunAfter.IsZero() && last.RunAfter.Before(oldest)) {
+				return
+			}
+			if len(res.DAGRuns) < 100 {
+				return
+			}
+		}
+	}
+
+	refreshMonitor := func() {
+		if store.ActiveTab() != "monitor" {
+			return // lazy: only compute when the monitor tab is visible
+		}
+		dagId := store.SelectedDAG()
+		window := mainLayout.Monitor().Window()
+		if dagId == "" {
+			dispatcher.Post(func() { mainLayout.Monitor().Update("", nil, nil) })
+			return
+		}
+		go func() {
+			backfillMonitorHistory(dagId)
+			since := time.Now().Add(-window)
+			runs, _ := bfCache.GetDAGRunsHistory(dagId, since, 1000)
+			tasks, _ := bfCache.GetTaskInstancesHistory(dagId, since, 5000)
+			dispatcher.Post(func() {
+				// drop-if-changed: skip stale results if selection/tab moved on.
+				if store.SelectedDAG() != dagId || store.ActiveTab() != "monitor" {
+					return
+				}
+				mainLayout.Monitor().Update(dagId, runs, tasks)
+			})
+		}()
+	}
+
+	store.Subscribe(state.EventDAGSelected, func(_ any) { refreshMonitor() })
+	store.Subscribe(state.EventDAGRunsUpdated, func(_ any) { refreshMonitor() })
+	store.Subscribe(state.EventTabChanged, func(_ any) {
+		if store.ActiveTab() == "monitor" {
+			refreshMonitor()
+		}
 	})
 
 	// Selection → update status bar
@@ -553,6 +627,12 @@ func main() {
 			}
 		}()
 	})
+
+	kb.SetOnMonitorWindow(func(delta int) {
+		mainLayout.Monitor().CycleWindow(delta)
+		refreshMonitor()
+	})
+	kb.SetOnMonitorRefresh(refreshMonitor)
 
 	kb.Install()
 
