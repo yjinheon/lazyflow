@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rivo/tview"
@@ -20,6 +21,7 @@ const sparklineRuns = 20
 // and it derives all stats via internal/metrics.
 type MonitorView struct {
 	*tview.TextView
+	mu        sync.Mutex // guards windowIdx (read off-main via refreshMonitor, written on main via CycleWindow)
 	windowIdx int
 }
 
@@ -31,11 +33,19 @@ func NewMonitorView() *MonitorView {
 	return v
 }
 
-// Window returns the currently selected lookback duration.
-func (v *MonitorView) Window() time.Duration { return monitorWindows[v.windowIdx] }
+// Window returns the currently selected lookback duration. Safe to call from
+// any goroutine.
+func (v *MonitorView) Window() time.Duration {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return monitorWindows[v.windowIdx]
+}
 
-// CycleWindow advances the window selection by delta, wrapping around.
+// CycleWindow advances the window selection by delta, wrapping around. Safe to
+// call from any goroutine.
 func (v *MonitorView) CycleWindow(delta int) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	n := len(monitorWindows)
 	v.windowIdx = ((v.windowIdx+delta)%n + n) % n
 }
