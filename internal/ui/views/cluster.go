@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rivo/tview"
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
@@ -81,11 +82,66 @@ func (v *ClusterInfoView) renderHealth() string {
 			"[yellow]Metadatabase:[-] %s\n"+
 			"[yellow]Triggerer:[-]    %s\n"+
 			"[yellow]DAG Proc:[-]     %s",
-		formatHealth(v.health.Scheduler),
+		formatHealthLag(v.health.Scheduler, heartbeatOf(v.health.Scheduler, "scheduler")),
 		formatHealth(v.health.Metadatabase),
-		formatHealth(v.health.Triggerer),
-		formatHealth(v.health.DagProcessor),
+		formatHealthLag(v.health.Triggerer, heartbeatOf(v.health.Triggerer, "triggerer")),
+		formatHealthLag(v.health.DagProcessor, heartbeatOf(v.health.DagProcessor, "dagprocessor")),
 	)
+}
+
+// heartbeatOf returns the component-specific heartbeat string from a status.
+func heartbeatOf(s *models.HealthStatus, kind string) string {
+	if s == nil {
+		return ""
+	}
+	switch kind {
+	case "scheduler":
+		return s.LatestSchedulerHeartbeat
+	case "triggerer":
+		return s.LatestTriggererHeartbeat
+	case "dagprocessor":
+		return s.LatestDagProcessorHeartbeat
+	}
+	return ""
+}
+
+// formatHealthLag renders the base health status plus a color-coded heartbeat
+// lag age. Thresholds: <30s green, <120s yellow, else red. When the heartbeat
+// is missing or unparseable, only the base status is shown.
+func formatHealthLag(s *models.HealthStatus, heartbeat string) string {
+	base := formatHealth(s)
+	lag, ok := heartbeatLag(heartbeat, time.Now())
+	if !ok {
+		return base
+	}
+	color := "green"
+	switch {
+	case lag >= 120*time.Second:
+		color = "red"
+	case lag >= 30*time.Second:
+		color = "yellow"
+	}
+	return fmt.Sprintf("%s [%s](%s)[-]", base, color, formatDuration(lag))
+}
+
+// heartbeatLag parses an RFC3339 heartbeat timestamp and returns now-hb,
+// clamped to >= 0. ok is false when the string is empty or unparseable.
+func heartbeatLag(hb string, now time.Time) (time.Duration, bool) {
+	if hb == "" {
+		return 0, false
+	}
+	t, err := time.Parse(time.RFC3339, hb)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339Nano, hb)
+		if err != nil {
+			return 0, false
+		}
+	}
+	d := now.Sub(t)
+	if d < 0 {
+		d = 0
+	}
+	return d, true
 }
 
 func formatHealth(s *models.HealthStatus) string {

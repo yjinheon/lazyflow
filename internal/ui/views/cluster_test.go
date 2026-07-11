@@ -3,6 +3,7 @@ package views
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
@@ -70,6 +71,25 @@ func TestClusterToggleView(t *testing.T) {
 	v.ToggleView()
 	if back := v.GetText(false); !strings.Contains(back, "█") {
 		t.Errorf("toggle back to compact failed: %q", back)
+	}
+}
+
+func TestHeartbeatLag(t *testing.T) {
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+
+	if _, ok := heartbeatLag("", now); ok {
+		t.Fatal("empty heartbeat should not parse")
+	}
+	if _, ok := heartbeatLag("not-a-time", now); ok {
+		t.Fatal("garbage heartbeat should not parse")
+	}
+	lag, ok := heartbeatLag("2026-07-11T11:59:58+00:00", now)
+	if !ok || lag != 2*time.Second {
+		t.Fatalf("got lag=%v ok=%v, want 2s true", lag, ok)
+	}
+	// future heartbeat clamps to zero, not negative.
+	if lag, ok := heartbeatLag("2026-07-11T12:00:05+00:00", now); !ok || lag != 0 {
+		t.Fatalf("future heartbeat: got %v ok=%v, want 0 true", lag, ok)
 	}
 }
 
