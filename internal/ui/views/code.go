@@ -23,6 +23,13 @@ func (v *CodeView) SetContent(code string) {
 	v.ScrollToBeginning()
 }
 
+// SetHighlighted takes pre-rendered tview markup (see HighlightPython), which
+// is produced off the tview goroutine because highlighting is CPU-bound.
+func (v *CodeView) SetHighlighted(markup string) {
+	v.SetText(markup)
+	v.ScrollToBeginning()
+}
+
 func (v *CodeView) SetMessage(msg string) {
 	v.SetText("[gray]" + tview.Escape(msg))
 	v.ScrollToBeginning()

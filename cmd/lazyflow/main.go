@@ -376,7 +376,10 @@ func main() {
 				dispatcher.Post(func() { mainLayout.Code().SetError(err.Error()) })
 				return
 			}
-			dispatcher.Post(func() { mainLayout.Code().SetContent(code) })
+			// Highlight here, not in the posted closure: it is CPU-bound and
+			// would block the tview goroutine.
+			markup := views.HighlightPython(code)
+			dispatcher.Post(func() { mainLayout.Code().SetHighlighted(markup) })
 		}()
 	})
 

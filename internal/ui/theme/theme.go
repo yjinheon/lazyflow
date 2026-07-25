@@ -43,6 +43,9 @@ type Theme struct {
 	// SectionHeader styles grouping labels that are not table headers
 	// (help sections, config section names, connection types).
 	SectionHeader tcell.Color
+
+	// SyntaxStyle names the chroma style used for DAG source highlighting.
+	SyntaxStyle string
 }
 
 // TokyoNightStorm is the sole UI theme, taken from the Tokyo Night Storm palette.
@@ -78,6 +81,8 @@ var TokyoNightStorm = Theme{
 	TableRowAlt:     hex(0x1f2335),
 
 	SectionHeader: hex(0x7dcfff), // cyan
+
+	SyntaxStyle: "tokyonight-storm",
 }
 
 func hex(v int32) tcell.Color { return tcell.NewHexColor(v) }
