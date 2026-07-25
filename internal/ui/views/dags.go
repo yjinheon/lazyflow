@@ -16,6 +16,7 @@ type DagListView struct {
 	dags        []models.DAG // currently displayed (filtered)
 	filterMode  string       // "all", "active", "failed"
 	searchQuery string
+	activeDagId string // committed via Enter; distinct from the cursor row
 	onSelected  func(dagId string)
 }
 
@@ -48,6 +49,7 @@ func (v *DagListView) setup() {
 
 	v.SetSelectedFunc(func(row, column int) {
 		if row > 0 && row <= len(v.dags) {
+			v.setActiveDag(v.dags[row-1].DagId)
 			if v.onSelected != nil {
 				v.onSelected(v.dags[row-1].DagId)
 			}
@@ -64,6 +66,16 @@ func (v *DagListView) renderHeaders() {
 			SetAlign(tview.AlignLeft)
 		v.SetCell(0, i, cell)
 	}
+}
+
+func (v *DagListView) emptyHint() string {
+	if v.searchQuery != "" {
+		return "No DAGs match this search — press Esc then / to search again."
+	}
+	if v.filterMode != "all" {
+		return "No DAGs in this filter — press A for all DAGs."
+	}
+	return "No DAGs loaded yet — press F5 to refresh."
 }
 
 func (v *DagListView) titleText() string {
@@ -136,11 +148,29 @@ func (v *DagListView) applyFilter() {
 	v.dags = filtered
 }
 
+// setActiveDag re-marks the committed row in place. It avoids Clear/SetSelectable
+// because it runs inside the table's own input handler.
+func (v *DagListView) setActiveDag(dagId string) {
+	if v.activeDagId == dagId {
+		return
+	}
+	v.activeDagId = dagId
+	for i, d := range v.dags {
+		cell := v.GetCell(i+1, 0)
+		if cell == nil {
+			continue
+		}
+		active := d.DagId == dagId
+		cell.SetText(rowLabel(d.DagId, active)).SetTextColor(rowLabelColor(active))
+	}
+}
+
 func (v *DagListView) render() {
 	v.Clear()
 	v.renderHeaders()
 	if len(v.dags) == 0 {
 		v.SetSelectable(false, false)
+		setEmptyHint(v.Table, v.emptyHint())
 		return
 	}
 	v.SetSelectable(true, false)
@@ -153,8 +183,9 @@ func (v *DagListView) render() {
 			bg = t.TableRowAlt
 		}
 
-		v.SetCell(row, 0, tview.NewTableCell(dag.DagId).
-			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
+		active := dag.DagId == v.activeDagId
+		v.SetCell(row, 0, tview.NewTableCell(rowLabel(dag.DagId, active)).
+			SetTextColor(rowLabelColor(active)).SetExpansion(1).SetBackgroundColor(bg))
 
 		stateStr := "Active"
 		stateColor := t.StatusSuccess

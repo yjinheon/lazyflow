@@ -25,7 +25,7 @@ func TestTasksViewUpdateDefinitions_rendersDAGTasks(t *testing.T) {
 	if got := v.table.GetCell(0, 0).Text; got != "Task ID" {
 		t.Fatalf("header=%q", got)
 	}
-	if got := v.table.GetCell(1, 0).Text; got != "extract" {
+	if got := v.table.GetCell(1, 0).Text; got != rowLabel("extract", false) {
 		t.Fatalf("task id=%q", got)
 	}
 	if got := v.table.GetCell(1, 1).Text; got != "BashOperator" {
@@ -48,7 +48,7 @@ func TestTasksViewUpdateInstances_returnsToRunMode(t *testing.T) {
 	if got := v.table.GetCell(0, 1).Text; got != "State" {
 		t.Fatalf("header=%q", got)
 	}
-	if got := v.table.GetCell(1, 0).Text; got != "extract" {
+	if got := v.table.GetCell(1, 0).Text; got != rowLabel("extract", false) {
 		t.Fatalf("task id=%q", got)
 	}
 }

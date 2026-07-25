@@ -36,6 +36,7 @@ func (v *VariablesView) Update(vars []models.Variable) {
 	v.renderHeaders()
 	if len(vars) == 0 {
 		v.SetSelectable(false, false)
+		setEmptyHint(v.Table, "No variables defined in this Airflow instance.")
 		return
 	}
 	v.SetSelectable(true, false)

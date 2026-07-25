@@ -21,6 +21,7 @@ type TasksView struct {
 	taskInstances      []models.TaskInstance
 	taskDefinitions    []models.Task
 	showingDefinitions bool
+	activeTaskId       string // committed via Enter; distinct from the cursor row
 	onSelected         func(taskId string)
 }
 
@@ -59,10 +60,12 @@ func (v *TasksView) setupTable() {
 			return
 		}
 		if v.showingDefinitions && row <= len(v.taskDefinitions) {
+			v.setActiveTask(v.taskDefinitions[row-1].TaskId)
 			v.onSelected(v.taskDefinitions[row-1].TaskId)
 			return
 		}
 		if !v.showingDefinitions && row <= len(v.taskInstances) {
+			v.setActiveTask(v.taskInstances[row-1].TaskId)
 			if v.onSelected != nil {
 				v.onSelected(v.taskInstances[row-1].TaskId)
 			}
@@ -83,6 +86,38 @@ func (v *TasksView) renderHeaders(headers []string) {
 	}
 }
 
+// currentTaskIds returns the task ids backing the rows currently rendered.
+func (v *TasksView) currentTaskIds() []string {
+	if v.showingDefinitions {
+		ids := make([]string, len(v.taskDefinitions))
+		for i, t := range v.taskDefinitions {
+			ids[i] = t.TaskId
+		}
+		return ids
+	}
+	ids := make([]string, len(v.taskInstances))
+	for i, t := range v.taskInstances {
+		ids[i] = t.TaskId
+	}
+	return ids
+}
+
+// setActiveTask re-marks the committed row in place; see DagListView.setActiveDag.
+func (v *TasksView) setActiveTask(taskId string) {
+	if v.activeTaskId == taskId {
+		return
+	}
+	v.activeTaskId = taskId
+	for i, id := range v.currentTaskIds() {
+		cell := v.table.GetCell(i+1, 0)
+		if cell == nil {
+			continue
+		}
+		active := id == taskId
+		cell.SetText(rowLabel(id, active)).SetTextColor(rowLabelColor(active))
+	}
+}
+
 func (v *TasksView) SetOnSelected(handler func(taskId string)) {
 	v.onSelected = handler
 }
@@ -95,6 +130,7 @@ func (v *TasksView) Update(tasks []models.TaskInstance) {
 	v.table.Clear()
 	v.setupTable()
 	if len(tasks) == 0 {
+		setEmptyHint(v.table, "No task instances for this run yet.")
 		return
 	}
 	v.table.SetSelectable(true, false)
@@ -107,8 +143,9 @@ func (v *TasksView) Update(tasks []models.TaskInstance) {
 			bg = t.TableRowAlt
 		}
 
-		v.table.SetCell(row, 0, tview.NewTableCell(task.TaskId).
-			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
+		active := task.TaskId == v.activeTaskId
+		v.table.SetCell(row, 0, tview.NewTableCell(rowLabel(task.TaskId, active)).
+			SetTextColor(rowLabelColor(active)).SetExpansion(1).SetBackgroundColor(bg))
 
 		symbol, color := t.StatusStyle(task.State)
 		v.table.SetCell(row, 1, tview.NewTableCell(fmt.Sprintf("%s %s", symbol, task.State)).
@@ -158,8 +195,9 @@ func (v *TasksView) UpdateDefinitions(dagId string, tasks []models.Task) {
 			bg = t.TableRowAlt
 		}
 
-		v.table.SetCell(row, 0, tview.NewTableCell(task.TaskId).
-			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
+		active := task.TaskId == v.activeTaskId
+		v.table.SetCell(row, 0, tview.NewTableCell(rowLabel(task.TaskId, active)).
+			SetTextColor(rowLabelColor(active)).SetExpansion(1).SetBackgroundColor(bg))
 		v.table.SetCell(row, 1, tview.NewTableCell(task.Operator).
 			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 2, tview.NewTableCell(task.Owner).

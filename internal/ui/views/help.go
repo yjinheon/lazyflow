@@ -97,7 +97,7 @@ func (v *HelpView) addBinding(row int, key, action string) int {
 		SetSelectable(false).
 		SetExpansion(1))
 	v.SetCell(row, 1, tview.NewTableCell(action).
-		SetTextColor(theme.ActiveTheme().PrimaryText).
+		SetTextColor(theme.ActiveTheme().SecondaryText).
 		SetSelectable(false).
 		SetExpansion(4))
 	return row + 1

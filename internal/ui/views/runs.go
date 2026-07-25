@@ -16,6 +16,7 @@ type RunsView struct {
 	runs        []models.DAGRun // currently displayed (after filter)
 	stateFilter string          // "" = all
 	since       time.Time       // window cutoff for success/failed (zero = none)
+	activeRunId string          // committed via Enter; distinct from the cursor row
 	onSelected  func(runId string)
 }
 
@@ -56,6 +57,7 @@ func (v *RunsView) setup() {
 
 	v.SetSelectedFunc(func(row, column int) {
 		if row > 0 && row <= len(v.runs) {
+			v.setActiveRun(v.runs[row-1].RunId)
 			if v.onSelected != nil {
 				v.onSelected(v.runs[row-1].RunId)
 			}
@@ -68,6 +70,13 @@ func (v *RunsView) titleText() string {
 		return " DAG Runs "
 	}
 	return fmt.Sprintf(" DAG Runs <%s> ", v.stateFilter)
+}
+
+func (v *RunsView) emptyHint() string {
+	if v.stateFilter != "" {
+		return "No runs in this state — pick All in the Runs filter (i)."
+	}
+	return "No runs for this DAG — press t to trigger one, or b to backfill."
 }
 
 func (v *RunsView) SetOnSelected(handler func(runId string)) {
@@ -123,11 +132,29 @@ func runRecency(r models.DAGRun) time.Time {
 	return r.LogicalDate
 }
 
+// setActiveRun re-marks the committed row in place; see DagListView.setActiveDag.
+func (v *RunsView) setActiveRun(runId string) {
+	if v.activeRunId == runId {
+		return
+	}
+	v.activeRunId = runId
+	for i, r := range v.runs {
+		cell := v.GetCell(i+1, 0)
+		if cell == nil {
+			continue
+		}
+		active := r.RunId == runId
+		cell.SetText(rowLabel(r.RunId, active)).SetTextColor(rowLabelColor(active))
+	}
+}
+
 func (v *RunsView) render() {
 	v.Clear()
 	v.setup()
 	if len(v.runs) == 0 {
-		return // keep table non-selectable while empty (see setup comment)
+		// keep table non-selectable while empty (see setup comment)
+		setEmptyHint(v.Table, v.emptyHint())
+		return
 	}
 	v.SetSelectable(true, false)
 
@@ -139,8 +166,9 @@ func (v *RunsView) render() {
 			bg = t.TableRowAlt
 		}
 
-		v.SetCell(row, 0, tview.NewTableCell(run.RunId).
-			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
+		active := run.RunId == v.activeRunId
+		v.SetCell(row, 0, tview.NewTableCell(rowLabel(run.RunId, active)).
+			SetTextColor(rowLabelColor(active)).SetExpansion(1).SetBackgroundColor(bg))
 
 		symbol, color := t.StatusStyle(run.State)
 		v.SetCell(row, 1, tview.NewTableCell(fmt.Sprintf("%s %s", symbol, run.State)).

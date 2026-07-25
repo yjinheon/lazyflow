@@ -141,6 +141,14 @@ func TestEmptyTableNavigationDoesNotHang(t *testing.T) {
 	defer scr.Fini()
 	scr.SetSize(120, 40)
 
+	// Drive the empty-data path so the empty-hint rows are covered too.
+	l.DagList().Update(nil)
+	l.Runs().Update(nil)
+	l.Tasks().Update(nil)
+	l.Connections().Update(nil)
+	l.Variables().Update(nil)
+	l.Config().Update(nil)
+
 	events := []*tcell.EventKey{
 		key(tcell.KeyUp, 0, tcell.ModNone),
 		key(tcell.KeyDown, 0, tcell.ModNone),
@@ -163,6 +171,7 @@ func TestEmptyTableNavigationDoesNotHang(t *testing.T) {
 		l.Runs().Root(),
 		l.Connections().Root(),
 		l.Variables().Root(),
+		l.Config().Root(),
 		l.DagInfo().FilterList(),
 	}
 

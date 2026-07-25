@@ -38,6 +38,7 @@ func (v *ConnectionsView) Update(conns []models.Connection) {
 	v.renderHeaders()
 	if len(conns) == 0 {
 		v.SetSelectable(false, false)
+		setEmptyHint(v.Table, "No connections defined in this Airflow instance.")
 		return
 	}
 	v.SetSelectable(true, false)

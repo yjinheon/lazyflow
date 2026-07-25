@@ -39,6 +39,7 @@ func (v *ConfigView) Update(cfg *models.AirflowConfigResponse) {
 	v.SetSelectable(false, false)
 
 	if cfg == nil {
+		setEmptyHint(v.Table, "Airflow config not loaded — the API may hide it (expose_config).")
 		return
 	}
 
