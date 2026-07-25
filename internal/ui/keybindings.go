@@ -135,11 +135,18 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.cycleFocus(-1)
 		return nil
 	case tcell.KeyLeft:
-		kb.cycleTab(-1)
-		return nil
+		// Only Shift+Left cycles tabs; a bare Left belongs to the focused widget.
+		if event.Modifiers()&tcell.ModShift != 0 {
+			kb.cycleTab(-1)
+			return nil
+		}
+		return event
 	case tcell.KeyRight:
-		kb.cycleTab(1)
-		return nil
+		if event.Modifiers()&tcell.ModShift != 0 {
+			kb.cycleTab(1)
+			return nil
+		}
+		return event
 	}
 
 	// Rune keys
@@ -155,6 +162,14 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 			}
 		}
 
+	// Tab cycling; rune fallback for terminals that swallow Shift+arrows.
+	case '<':
+		kb.cycleTab(-1)
+		return nil
+	case '>':
+		kb.cycleTab(1)
+		return nil
+
 	// Tab aliases and toggles
 	case 'B':
 		kb.layout.SwitchTab("backfills")
@@ -162,6 +177,7 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
 		return nil
 	case 'g':
+		// Consumed only where it toggles a view; elsewhere it stays tview's jump-to-top.
 		switch kb.store.ActiveTab() {
 		case "tasks":
 			kb.store.SetGanttMode(!kb.store.GanttMode())
@@ -177,6 +193,8 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 				}
 				kb.layout.Lineage().UpdateGraph(stateByTask)
 			}
+		default:
+			return event
 		}
 		return nil
 
@@ -259,8 +277,9 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	case 'r':
 		if kb.store.ActiveTab() == "monitor" && kb.onMonitorRefresh != nil {
 			kb.onMonitorRefresh()
+			return nil
 		}
-		return nil
+		return event
 
 	// Search
 	case '/':
@@ -311,18 +330,29 @@ func (kb *KeyBindings) cycleFocus(delta int) {
 	kb.app.SetFocus(ring[idx])
 }
 
+// cycleTabNames is tabNames minus help, which is reachable via '?' only.
+var cycleTabNames = func() []string {
+	out := make([]string, 0, len(tabNames))
+	for _, t := range tabNames {
+		if t.name != "help" {
+			out = append(out, t.name)
+		}
+	}
+	return out
+}()
+
 func (kb *KeyBindings) cycleTab(delta int) {
 	cur := kb.store.ActiveTab()
 	idx := 0
-	for i, t := range tabNames {
-		if t.name == cur {
+	for i, name := range cycleTabNames {
+		if name == cur {
 			idx = i
 			break
 		}
 	}
-	n := len(tabNames)
+	n := len(cycleTabNames)
 	idx = ((idx+delta)%n + n) % n
-	next := tabNames[idx].name
+	next := cycleTabNames[idx]
 	kb.layout.SwitchTab(next)
 	kb.store.SetActiveTab(next)
 	kb.app.SetFocus(kb.layout.ActiveTabPrimitive())

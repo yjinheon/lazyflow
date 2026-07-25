@@ -31,16 +31,19 @@ func (v *HelpView) render() {
 
 	row := 1
 	row = v.addSection(row, "Navigation")
-	row = v.addBinding(row, "j / k", "Move up / down")
+	row = v.addBinding(row, "j / k  ·  ↑ / ↓", "Move up / down")
+	row = v.addBinding(row, "h / l  ·  ← / →", "Scroll columns left / right")
+	row = v.addBinding(row, "g / G", "Jump to top / bottom")
+	row = v.addBinding(row, "PgUp / PgDn", "Page up / down")
 	row = v.addBinding(row, "Enter", "Select / drill down")
 	row = v.addBinding(row, "Esc", "Close modal, execution view, or return focus to DAG list")
 
 	row = v.addSection(row+1, "Tabs")
 	row = v.addBinding(row, "1-7", "Pipeline tabs: runs, tasks, logs, code, lineage, monitor, backfills")
 	row = v.addBinding(row, "8 / 9 / 0", "Global tabs: connections, variables, config")
-	row = v.addBinding(row, "Left / Right", "Previous / next tab")
+	row = v.addBinding(row, "< / >  ·  Shift+← / →", "Previous / next tab")
 	row = v.addBinding(row, "B", "Backfills")
-	row = v.addBinding(row, "g", "Toggle tasks gantt or lineage graph")
+	row = v.addBinding(row, "g", "Toggle gantt (Tasks) or graph (Lineage)")
 	row = v.addBinding(row, "?", "Open this keymap page")
 
 	row = v.addSection(row+1, "DAG Actions")
@@ -56,6 +59,10 @@ func (v *HelpView) render() {
 	row = v.addSection(row+1, "Backfill Actions")
 	row = v.addBinding(row, "p / u", "Pause / unpause selected backfill")
 	row = v.addBinding(row, "c", "Cancel selected backfill")
+
+	row = v.addSection(row+1, "Monitor Tab")
+	row = v.addBinding(row, "[ / ]", "Previous / next time window")
+	row = v.addBinding(row, "r", "Refresh dashboard")
 
 	row = v.addSection(row+1, "DAG Filters")
 	row = v.addBinding(row, "a", "Active DAGs")

@@ -72,6 +72,17 @@ func NewDagInfoView() *DagInfoView {
 	v.filter.SetBorder(true).SetTitle(" Runs filter ")
 	v.filter.SetFocusFunc(func() { v.filter.SetBorderColor(theme.ActiveTheme().BorderFocused) })
 	v.filter.SetBlurFunc(func() { v.filter.SetBorderColor(theme.ActiveTheme().BorderColor) })
+	// tview.List has no j/k navigation (runes are shortcuts); map them to arrows
+	// so it matches the Table-based panels.
+	v.filter.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Rune() {
+		case 'j':
+			return tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone)
+		case 'k':
+			return tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone)
+		}
+		return event
+	})
 	v.filter.SetSelectedFunc(func(idx int, _, _ string, _ rune) {
 		if v.onFilter != nil && idx >= 0 && idx < len(filterDefs) {
 			v.onFilter(filterDefs[idx].state)
