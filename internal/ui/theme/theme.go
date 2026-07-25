@@ -35,9 +35,14 @@ type Theme struct {
 	BorderColor   tcell.Color
 	BorderFocused tcell.Color
 
-	TableHeader   tcell.Color
-	TableSelected tcell.Color
-	TableRowAlt   tcell.Color
+	TableHeader     tcell.Color
+	TableHeaderText tcell.Color
+	TableSelected   tcell.Color
+	TableRowAlt     tcell.Color
+
+	// SectionHeader styles grouping labels that are not table headers
+	// (help sections, config section names, connection types).
+	SectionHeader tcell.Color
 }
 
 // DefaultDarkTheme implements a dark theme inspired by kdash/lazydocker
@@ -67,9 +72,12 @@ var DefaultDarkTheme = Theme{
 	BorderColor:   tcell.NewRGBColor(63, 63, 70),   // zinc-700
 	BorderFocused: tcell.NewRGBColor(99, 102, 241), // indigo-500
 
-	TableHeader:   tcell.NewRGBColor(63, 63, 70),
-	TableSelected: tcell.NewRGBColor(55, 48, 163), // indigo-800
-	TableRowAlt:   tcell.NewRGBColor(30, 30, 35),
+	TableHeader:     tcell.NewRGBColor(63, 63, 70),
+	TableHeaderText: tcell.NewRGBColor(251, 191, 36), // amber-400
+	TableSelected:   tcell.NewRGBColor(55, 48, 163),  // indigo-800
+	TableRowAlt:     tcell.NewRGBColor(30, 30, 35),
+
+	SectionHeader: tcell.NewRGBColor(34, 211, 238), // cyan-400
 }
 
 // active tracks the most recently applied theme so helpers can resolve
@@ -79,9 +87,11 @@ var active = DefaultDarkTheme
 // ActiveTheme returns the theme most recently passed to ApplyTheme.
 func ActiveTheme() Theme { return active }
 
-// ApplyTheme sets the global tview styles
+// ApplyTheme sets the global tview styles and rebinds tview's markup colour
+// names to this theme.
 func ApplyTheme(t Theme) {
 	active = t
+	applyMarkupNames(t)
 	tview.Styles = tview.Theme{
 		PrimitiveBackgroundColor:    t.PrimaryBg,
 		ContrastBackgroundColor:     t.SecondaryBg,
@@ -94,6 +104,23 @@ func ApplyTheme(t Theme) {
 		TertiaryTextColor:           t.MutedText,
 		InverseTextColor:            t.PrimaryBg,
 		ContrastSecondaryTextColor:  t.SecondaryText,
+	}
+}
+
+// applyMarkupNames rebinds tview markup colour names (e.g. "[yellow]x[-]") to
+// theme tokens; tview resolves them via the exported tcell.ColorNames map.
+func applyMarkupNames(t Theme) {
+	for name, c := range map[string]tcell.Color{
+		"black":  t.PrimaryBg,
+		"white":  t.PrimaryText,
+		"gray":   t.MutedText,
+		"yellow": t.TableHeaderText,
+		"red":    t.StatusFailed,
+		"green":  t.StatusSuccess,
+		"blue":   t.StatusRunning,
+		"aqua":   t.SectionHeader,
+	} {
+		tcell.ColorNames[name] = c
 	}
 }
 

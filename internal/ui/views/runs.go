@@ -36,16 +36,16 @@ func (v *RunsView) setup() {
 	v.SetSelectable(false, false)
 	v.SetFixed(1, 0)
 	v.SetSelectedStyle(tcell.StyleDefault.
-		Background(theme.DefaultDarkTheme.TableSelected).
-		Foreground(theme.DefaultDarkTheme.PrimaryText).
+		Background(theme.ActiveTheme().TableSelected).
+		Foreground(theme.ActiveTheme().PrimaryText).
 		Attributes(tcell.AttrBold))
-	v.SetFocusFunc(func() { v.SetBorderColor(theme.DefaultDarkTheme.BorderFocused) })
-	v.SetBlurFunc(func() { v.SetBorderColor(theme.DefaultDarkTheme.BorderColor) })
+	v.SetFocusFunc(func() { v.SetBorderColor(theme.ActiveTheme().BorderFocused) })
+	v.SetBlurFunc(func() { v.SetBorderColor(theme.ActiveTheme().BorderColor) })
 
 	headers := []string{"Run ID", "State", "Start", "End", "Duration", "Type"}
 	for i, h := range headers {
 		cell := tview.NewTableCell(h).
-			SetTextColor(tcell.ColorYellow).
+			SetTextColor(theme.ActiveTheme().TableHeaderText).
 			SetSelectable(false).
 			SetAlign(tview.AlignLeft)
 		if i == 0 {
@@ -131,7 +131,7 @@ func (v *RunsView) render() {
 	}
 	v.SetSelectable(true, false)
 
-	t := theme.DefaultDarkTheme
+	t := theme.ActiveTheme()
 	for i, run := range v.runs {
 		row := i + 1
 		bg := t.PrimaryBg
@@ -140,7 +140,7 @@ func (v *RunsView) render() {
 		}
 
 		v.SetCell(row, 0, tview.NewTableCell(run.RunId).
-			SetTextColor(tcell.ColorWhite).SetExpansion(1).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
 
 		symbol, color := t.StatusStyle(run.State)
 		v.SetCell(row, 1, tview.NewTableCell(fmt.Sprintf("%s %s", symbol, run.State)).
@@ -151,20 +151,20 @@ func (v *RunsView) render() {
 			startStr = run.StartDate.Format("01-02 15:04:05")
 		}
 		v.SetCell(row, 2, tview.NewTableCell(startStr).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		endStr := ""
 		if !run.EndDate.IsZero() {
 			endStr = run.EndDate.Format("01-02 15:04:05")
 		}
 		v.SetCell(row, 3, tview.NewTableCell(endStr).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		v.SetCell(row, 4, tview.NewTableCell(formatDuration(run.Duration())).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		v.SetCell(row, 5, tview.NewTableCell(run.RunType).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 	}
 }
 

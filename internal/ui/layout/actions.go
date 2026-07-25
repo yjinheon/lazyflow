@@ -6,6 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/yjinheon/lazyflow/internal/ui/theme"
 )
 
 type TriggerParams struct {
@@ -28,7 +29,7 @@ func (m *MainLayout) ShowTriggerModal(dagId string, onSubmit func(TriggerParams)
 	form := tview.NewForm()
 	form.SetBorder(true).
 		SetTitle(fmt.Sprintf(" Trigger DAG: %s ", dagId)).
-		SetBorderColor(tcell.ColorBlue)
+		SetBorderColor(theme.ActiveTheme().BorderFocused)
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	form.AddInputField("Logical Date", now, 40, nil, nil)
@@ -79,7 +80,7 @@ func (m *MainLayout) ShowBackfillModal(dagId string, onSubmit func(BackfillParam
 	form := tview.NewForm()
 	form.SetBorder(true).
 		SetTitle(fmt.Sprintf(" Backfill DAG: %s ", dagId)).
-		SetBorderColor(tcell.ColorBlue)
+		SetBorderColor(theme.ActiveTheme().BorderFocused)
 
 	yesterday := time.Now().AddDate(0, 0, -1).UTC().Format(time.RFC3339)
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -143,7 +144,7 @@ func (m *MainLayout) ShowConfirmModal(title, message string, onConfirm func()) {
 				onConfirm()
 			}
 		})
-	modal.SetTitle(title).SetBorder(true).SetBorderColor(tcell.ColorYellow)
+	modal.SetTitle(title).SetBorder(true).SetBorderColor(theme.ActiveTheme().StatusPaused)
 	modal.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
 			m.dismissModal()

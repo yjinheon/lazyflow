@@ -57,8 +57,8 @@ func NewDagInfoView() *DagInfoView {
 	v.meta.SetBorder(true).SetTitle(" DAG Info ")
 	v.meta.SetDynamicColors(true).SetScrollable(true)
 	v.meta.SetText("[gray]Select a DAG to view details")
-	v.meta.SetFocusFunc(func() { v.meta.SetBorderColor(theme.DefaultDarkTheme.BorderFocused) })
-	v.meta.SetBlurFunc(func() { v.meta.SetBorderColor(theme.DefaultDarkTheme.BorderColor) })
+	v.meta.SetFocusFunc(func() { v.meta.SetBorderColor(theme.ActiveTheme().BorderFocused) })
+	v.meta.SetBlurFunc(func() { v.meta.SetBorderColor(theme.ActiveTheme().BorderColor) })
 
 	v.filter.ShowSecondaryText(false)
 	v.filter.SetHighlightFullLine(true)
@@ -66,12 +66,12 @@ func NewDagInfoView() *DagInfoView {
 	// Match the DagList selection colour so the active filter highlight is
 	// visually consistent across panels.
 	v.filter.SetSelectedStyle(tcell.StyleDefault.
-		Background(theme.DefaultDarkTheme.TableSelected).
-		Foreground(theme.DefaultDarkTheme.PrimaryText).
+		Background(theme.ActiveTheme().TableSelected).
+		Foreground(theme.ActiveTheme().PrimaryText).
 		Attributes(tcell.AttrBold))
 	v.filter.SetBorder(true).SetTitle(" Runs filter ")
-	v.filter.SetFocusFunc(func() { v.filter.SetBorderColor(theme.DefaultDarkTheme.BorderFocused) })
-	v.filter.SetBlurFunc(func() { v.filter.SetBorderColor(theme.DefaultDarkTheme.BorderColor) })
+	v.filter.SetFocusFunc(func() { v.filter.SetBorderColor(theme.ActiveTheme().BorderFocused) })
+	v.filter.SetBlurFunc(func() { v.filter.SetBorderColor(theme.ActiveTheme().BorderColor) })
 	v.filter.SetSelectedFunc(func(idx int, _, _ string, _ rune) {
 		if v.onFilter != nil && idx >= 0 && idx < len(filterDefs) {
 			v.onFilter(filterDefs[idx].state)

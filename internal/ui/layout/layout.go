@@ -4,6 +4,7 @@ package layout
 import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/yjinheon/lazyflow/internal/ui/theme"
 	"github.com/yjinheon/lazyflow/internal/ui/views"
 )
 
@@ -33,24 +34,24 @@ type MainLayout struct {
 	statusBar   *StatusBar
 
 	// Tab views
-	runsView        *views.RunsView
-	tasksView       *views.TasksView
-	logsView        *views.LogsView
-	codeView        *views.CodeView
-	configView      *views.ConfigView
-	connectionsView *views.ConnectionsView
-	variablesView   *views.VariablesView
-	monitorView     *views.MonitorView
-	lineageView     *views.LineageView
-	backfillsView   *views.BackfillsView
-	helpView        *views.HelpView
+	runsView          *views.RunsView
+	tasksView         *views.TasksView
+	logsView          *views.LogsView
+	codeView          *views.CodeView
+	configView        *views.ConfigView
+	connectionsView   *views.ConnectionsView
+	variablesView     *views.VariablesView
+	monitorView       *views.MonitorView
+	lineageView       *views.LineageView
+	backfillsView     *views.BackfillsView
+	helpView          *views.HelpView
 	executionView     *views.ExecutionView
 	executionOpen     bool
 	executionClose    func()
 	executionEmbedded bool
 	prevTab           string
-	modalOpen       bool
-	searchOpen      bool
+	modalOpen         bool
+	searchOpen        bool
 
 	tabContent *tview.Pages
 }
@@ -133,8 +134,8 @@ func (m *MainLayout) ShowSearch() {
 	input := tview.NewInputField().
 		SetLabel(" / ").
 		SetFieldWidth(30).
-		SetLabelColor(tcell.ColorYellow)
-	input.SetBorder(true).SetTitle(" Search DAGs ").SetBorderColor(tcell.ColorBlue)
+		SetLabelColor(theme.ActiveTheme().TableHeaderText)
+	input.SetBorder(true).SetTitle(" Search DAGs ").SetBorderColor(theme.ActiveTheme().BorderFocused)
 
 	input.SetChangedFunc(func(text string) {
 		m.dagList.Search(text)

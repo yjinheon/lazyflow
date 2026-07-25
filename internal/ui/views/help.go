@@ -1,8 +1,8 @@
 package views
 
 import (
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/yjinheon/lazyflow/internal/ui/theme"
 )
 
 type HelpView struct {
@@ -21,11 +21,11 @@ func NewHelpView() *HelpView {
 
 func (v *HelpView) render() {
 	v.SetCell(0, 0, tview.NewTableCell("Key").
-		SetTextColor(tcell.ColorYellow).
+		SetTextColor(theme.ActiveTheme().TableHeaderText).
 		SetSelectable(false).
 		SetExpansion(1))
 	v.SetCell(0, 1, tview.NewTableCell("Action").
-		SetTextColor(tcell.ColorYellow).
+		SetTextColor(theme.ActiveTheme().TableHeaderText).
 		SetSelectable(false).
 		SetExpansion(4))
 
@@ -76,7 +76,7 @@ func (v *HelpView) render() {
 
 func (v *HelpView) addSection(row int, title string) int {
 	cell := tview.NewTableCell(title).
-		SetTextColor(tcell.ColorAqua).
+		SetTextColor(theme.ActiveTheme().SectionHeader).
 		SetSelectable(false).
 		SetExpansion(1)
 	v.SetCell(row, 0, cell)
@@ -86,11 +86,11 @@ func (v *HelpView) addSection(row int, title string) int {
 
 func (v *HelpView) addBinding(row int, key, action string) int {
 	v.SetCell(row, 0, tview.NewTableCell(key).
-		SetTextColor(tcell.ColorWhite).
+		SetTextColor(theme.ActiveTheme().PrimaryText).
 		SetSelectable(false).
 		SetExpansion(1))
 	v.SetCell(row, 1, tview.NewTableCell(action).
-		SetTextColor(tcell.ColorWhite).
+		SetTextColor(theme.ActiveTheme().PrimaryText).
 		SetSelectable(false).
 		SetExpansion(4))
 	return row + 1

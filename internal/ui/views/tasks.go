@@ -46,11 +46,11 @@ func (v *TasksView) setupTable() {
 	v.table.SetSelectable(false, false)
 	v.table.SetFixed(1, 0)
 	v.table.SetSelectedStyle(tcell.StyleDefault.
-		Background(theme.DefaultDarkTheme.TableSelected).
-		Foreground(theme.DefaultDarkTheme.PrimaryText).
+		Background(theme.ActiveTheme().TableSelected).
+		Foreground(theme.ActiveTheme().PrimaryText).
 		Attributes(tcell.AttrBold))
-	v.table.SetFocusFunc(func() { v.table.SetBorderColor(theme.DefaultDarkTheme.BorderFocused) })
-	v.table.SetBlurFunc(func() { v.table.SetBorderColor(theme.DefaultDarkTheme.BorderColor) })
+	v.table.SetFocusFunc(func() { v.table.SetBorderColor(theme.ActiveTheme().BorderFocused) })
+	v.table.SetBlurFunc(func() { v.table.SetBorderColor(theme.ActiveTheme().BorderColor) })
 
 	v.renderHeaders([]string{"Task ID", "State", "Operator", "Duration", "Try", "Start"})
 
@@ -73,7 +73,7 @@ func (v *TasksView) setupTable() {
 func (v *TasksView) renderHeaders(headers []string) {
 	for i, h := range headers {
 		cell := tview.NewTableCell(h).
-			SetTextColor(tcell.ColorYellow).
+			SetTextColor(theme.ActiveTheme().TableHeaderText).
 			SetSelectable(false).
 			SetAlign(tview.AlignLeft)
 		if i == 0 {
@@ -99,7 +99,7 @@ func (v *TasksView) Update(tasks []models.TaskInstance) {
 	}
 	v.table.SetSelectable(true, false)
 
-	t := theme.DefaultDarkTheme
+	t := theme.ActiveTheme()
 	for i, task := range tasks {
 		row := i + 1
 		bg := t.PrimaryBg
@@ -108,27 +108,27 @@ func (v *TasksView) Update(tasks []models.TaskInstance) {
 		}
 
 		v.table.SetCell(row, 0, tview.NewTableCell(task.TaskId).
-			SetTextColor(tcell.ColorWhite).SetExpansion(1).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
 
 		symbol, color := t.StatusStyle(task.State)
 		v.table.SetCell(row, 1, tview.NewTableCell(fmt.Sprintf("%s %s", symbol, task.State)).
 			SetTextColor(color).SetBackgroundColor(bg))
 
 		v.table.SetCell(row, 2, tview.NewTableCell(task.Operator).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		v.table.SetCell(row, 3, tview.NewTableCell(fmt.Sprintf("%.1fs", task.Duration)).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		v.table.SetCell(row, 4, tview.NewTableCell(fmt.Sprintf("%d", task.TryNumber)).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		startStr := ""
 		if task.StartDate != nil && !task.StartDate.IsZero() {
 			startStr = task.StartDate.Format("01-02 15:04:05")
 		}
 		v.table.SetCell(row, 5, tview.NewTableCell(startStr).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 	}
 }
 
@@ -143,14 +143,14 @@ func (v *TasksView) UpdateDefinitions(dagId string, tasks []models.Task) {
 	v.renderHeaders([]string{"Task ID", "Operator", "Owner", "Retries", "Trigger", "Pool", "Queue", "Downstream"})
 	if len(tasks) == 0 {
 		v.table.SetCell(1, 0, tview.NewTableCell(fmt.Sprintf("No DAG tasks loaded for %s", dagId)).
-			SetTextColor(tcell.ColorGray).
+			SetTextColor(theme.ActiveTheme().MutedText).
 			SetExpansion(1).
 			SetSelectable(false))
 		return
 	}
 	v.table.SetSelectable(true, false)
 
-	t := theme.DefaultDarkTheme
+	t := theme.ActiveTheme()
 	for i, task := range tasks {
 		row := i + 1
 		bg := t.PrimaryBg
@@ -159,21 +159,21 @@ func (v *TasksView) UpdateDefinitions(dagId string, tasks []models.Task) {
 		}
 
 		v.table.SetCell(row, 0, tview.NewTableCell(task.TaskId).
-			SetTextColor(tcell.ColorWhite).SetExpansion(1).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
 		v.table.SetCell(row, 1, tview.NewTableCell(task.Operator).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 2, tview.NewTableCell(task.Owner).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 3, tview.NewTableCell(fmt.Sprintf("%.0f", task.Retries)).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 4, tview.NewTableCell(task.TriggerRule).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 5, tview.NewTableCell(task.Pool).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 6, tview.NewTableCell(task.Queue).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 		v.table.SetCell(row, 7, tview.NewTableCell(fmt.Sprintf("%d", len(task.DownstreamTaskIds))).
-			SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 	}
 }
 

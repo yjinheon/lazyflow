@@ -6,6 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/yjinheon/lazyflow/internal/ui/theme"
 )
 
 // ---------- Header ----------
@@ -65,11 +66,11 @@ func NewKpiBar() *KpiBar {
 		root:  tview.NewFlex().SetDirection(tview.FlexColumn),
 		cards: make(map[string]*tview.TextView),
 	}
-	k.addCard("active", "Active", tcell.ColorGreen)
-	k.addCard("inactive", "Paused", tcell.ColorYellow)
-	k.addCard("running", "Running", tcell.ColorBlue)
-	k.addCard("success", "Success", tcell.ColorGreen)
-	k.addCard("failed", "Failed", tcell.ColorRed)
+	k.addCard("active", "Active", theme.ActiveTheme().StatusSuccess)
+	k.addCard("inactive", "Paused", theme.ActiveTheme().StatusPaused)
+	k.addCard("running", "Running", theme.ActiveTheme().StatusRunning)
+	k.addCard("success", "Success", theme.ActiveTheme().StatusSuccess)
+	k.addCard("failed", "Failed", theme.ActiveTheme().StatusFailed)
 	k.refresh()
 	return k
 }

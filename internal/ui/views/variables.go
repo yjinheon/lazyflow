@@ -1,8 +1,8 @@
 package views
 
 import (
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/yjinheon/lazyflow/internal/ui/theme"
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
@@ -25,7 +25,7 @@ func NewVariablesView() *VariablesView {
 func (v *VariablesView) renderHeaders() {
 	for i, h := range []string{"Key", "Value", "Description"} {
 		cell := tview.NewTableCell(h).
-			SetTextColor(tcell.ColorYellow).
+			SetTextColor(theme.ActiveTheme().TableHeaderText).
 			SetSelectable(false)
 		v.SetCell(0, i, cell)
 	}
@@ -42,9 +42,9 @@ func (v *VariablesView) Update(vars []models.Variable) {
 
 	for i, vr := range vars {
 		row := i + 1
-		v.SetCell(row, 0, tview.NewTableCell(vr.Key).SetTextColor(tcell.ColorWhite).SetExpansion(1))
-		v.SetCell(row, 1, tview.NewTableCell(vr.Value).SetTextColor(tcell.ColorWhite).SetExpansion(2))
-		v.SetCell(row, 2, tview.NewTableCell(vr.Description).SetTextColor(tcell.ColorGray))
+		v.SetCell(row, 0, tview.NewTableCell(vr.Key).SetTextColor(theme.ActiveTheme().PrimaryText).SetExpansion(1))
+		v.SetCell(row, 1, tview.NewTableCell(vr.Value).SetTextColor(theme.ActiveTheme().PrimaryText).SetExpansion(2))
+		v.SetCell(row, 2, tview.NewTableCell(vr.Description).SetTextColor(theme.ActiveTheme().MutedText))
 	}
 }
 

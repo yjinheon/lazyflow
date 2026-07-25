@@ -120,7 +120,7 @@ func renderGraph(tasks []models.Task, stateOf func(taskId string) NodeState, wid
 		truncated = len(levels) - visible
 	}
 
-	th := theme.DefaultDarkTheme
+	th := theme.ActiveTheme()
 	var b strings.Builder
 	for i := 0; i < visible; i++ {
 		fmt.Fprintf(&b, "[yellow::b]%-*s[-:-:-]", graphStageWidth, fmt.Sprintf("Stage %d", i+1))

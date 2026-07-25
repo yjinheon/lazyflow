@@ -37,11 +37,11 @@ func NewLineageView() *LineageView {
 func (v *LineageView) setup() {
 	v.tree.SetBorder(true).
 		SetTitle(" Task Lineage ").
-		SetBorderColor(theme.DefaultDarkTheme.BorderColor)
+		SetBorderColor(theme.ActiveTheme().BorderColor)
 
 	v.details.SetBorder(true).
 		SetTitle(" Task Details ").
-		SetBorderColor(theme.DefaultDarkTheme.BorderColor)
+		SetBorderColor(theme.ActiveTheme().BorderColor)
 
 	v.details.SetDynamicColors(true)
 
@@ -51,7 +51,7 @@ func (v *LineageView) setup() {
 
 	v.graph.SetBorder(true).
 		SetTitle(" DAG Graph (g: tree) ").
-		SetBorderColor(theme.DefaultDarkTheme.BorderColor)
+		SetBorderColor(theme.ActiveTheme().BorderColor)
 	v.graph.SetDynamicColors(true).SetWrap(false)
 
 	v.AddPage(lineagePageTree, v.treeFlex, true, true)
@@ -63,7 +63,7 @@ func (v *LineageView) SetTasks(dagId string, tasks []models.Task) {
 	v.details.SetText("")
 
 	root := tview.NewTreeNode(dagId).
-		SetColor(theme.DefaultDarkTheme.Accent)
+		SetColor(theme.ActiveTheme().Accent)
 
 	v.tree.SetRoot(root).SetCurrentNode(root)
 	if len(tasks) == 0 {
@@ -151,11 +151,11 @@ func (v *LineageView) UpdateGraph(stateByTask map[string]string) {
 	}
 	body := renderGraph(v.tasks, stateOf, w)
 	legend := fmt.Sprintf("\n[gray]legend:[-] %s%s %s%s %s%s %s%s %s%s\n",
-		mk(theme.DefaultDarkTheme, "success"), " success ",
-		mk(theme.DefaultDarkTheme, "running"), " running ",
-		mk(theme.DefaultDarkTheme, "failed"), " failed ",
-		mk(theme.DefaultDarkTheme, "skipped"), " skipped ",
-		mk(theme.DefaultDarkTheme, ""), " pending")
+		mk(theme.ActiveTheme(), "success"), " success ",
+		mk(theme.ActiveTheme(), "running"), " running ",
+		mk(theme.ActiveTheme(), "failed"), " failed ",
+		mk(theme.ActiveTheme(), "skipped"), " skipped ",
+		mk(theme.ActiveTheme(), ""), " pending")
 	v.graph.SetText(body + legend)
 }
 

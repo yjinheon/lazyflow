@@ -66,7 +66,7 @@ func NewExecutionView() *ExecutionView {
 }
 
 func (v *ExecutionView) setup() {
-	th := theme.DefaultDarkTheme
+	th := theme.ActiveTheme()
 
 	v.summary.SetDynamicColors(true)
 	v.summary.SetBorder(true).SetTitle(" Run ")
@@ -160,7 +160,7 @@ func (v *ExecutionView) UpdateRun(run models.DAGRun, tis []models.TaskInstance, 
 }
 
 func (v *ExecutionView) renderSummary(run models.DAGRun, tis []models.TaskInstance) {
-	th := theme.DefaultDarkTheme
+	th := theme.ActiveTheme()
 	sym, color := th.StatusStyle(run.State)
 	s := summarize(tis)
 	start := ""
@@ -173,11 +173,11 @@ func (v *ExecutionView) renderSummary(run models.DAGRun, tis []models.TaskInstan
 }
 
 func (v *ExecutionView) renderTaskList(tis []models.TaskInstance) {
-	th := theme.DefaultDarkTheme
+	th := theme.ActiveTheme()
 	v.taskList.Clear()
 	hdr := []string{"Task", "State", "Try"}
 	for i, h := range hdr {
-		c := tview.NewTableCell(h).SetTextColor(tcell.ColorYellow).SetSelectable(false)
+		c := tview.NewTableCell(h).SetTextColor(theme.ActiveTheme().TableHeaderText).SetSelectable(false)
 		if i == 0 {
 			c.SetExpansion(1)
 		}

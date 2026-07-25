@@ -29,7 +29,7 @@ func NewDagListView() *DagListView {
 }
 
 func (v *DagListView) setup() {
-	v.SetBorder(true).SetTitle(v.titleText()).SetBorderColor(tcell.ColorGray)
+	v.SetBorder(true).SetTitle(v.titleText()).SetBorderColor(theme.ActiveTheme().BorderColor)
 	// Selectable is toggled in render() based on whether any data rows
 	// remain after filtering. With a header-only table, tview's draw-time
 	// clamp pushes selectedRow out of bounds, then the next Down arrow
@@ -38,11 +38,11 @@ func (v *DagListView) setup() {
 	v.SetSelectable(false, false)
 	v.SetFixed(1, 0)
 	v.SetSelectedStyle(tcell.StyleDefault.
-		Background(theme.DefaultDarkTheme.TableSelected).
-		Foreground(theme.DefaultDarkTheme.PrimaryText).
+		Background(theme.ActiveTheme().TableSelected).
+		Foreground(theme.ActiveTheme().PrimaryText).
 		Attributes(tcell.AttrBold))
-	v.SetFocusFunc(func() { v.SetBorderColor(theme.DefaultDarkTheme.BorderFocused) })
-	v.SetBlurFunc(func() { v.SetBorderColor(theme.DefaultDarkTheme.BorderColor) })
+	v.SetFocusFunc(func() { v.SetBorderColor(theme.ActiveTheme().BorderFocused) })
+	v.SetBlurFunc(func() { v.SetBorderColor(theme.ActiveTheme().BorderColor) })
 
 	v.renderHeaders()
 
@@ -59,7 +59,7 @@ func (v *DagListView) renderHeaders() {
 	headers := []string{"DAG ID", "State", "Schedule", "Owners"}
 	for i, h := range headers {
 		cell := tview.NewTableCell(h).
-			SetTextColor(tcell.ColorYellow).
+			SetTextColor(theme.ActiveTheme().TableHeaderText).
 			SetSelectable(false).
 			SetAlign(tview.AlignLeft)
 		v.SetCell(0, i, cell)
@@ -145,7 +145,7 @@ func (v *DagListView) render() {
 	}
 	v.SetSelectable(true, false)
 
-	t := theme.DefaultDarkTheme
+	t := theme.ActiveTheme()
 	for i, dag := range v.dags {
 		row := i + 1
 		bg := t.PrimaryBg
@@ -154,23 +154,23 @@ func (v *DagListView) render() {
 		}
 
 		v.SetCell(row, 0, tview.NewTableCell(dag.DagId).
-			SetTextColor(tcell.ColorWhite).SetExpansion(1).SetBackgroundColor(bg))
+			SetTextColor(t.PrimaryText).SetExpansion(1).SetBackgroundColor(bg))
 
 		stateStr := "Active"
-		stateColor := tcell.ColorGreen
+		stateColor := t.StatusSuccess
 		if dag.IsPaused {
 			stateStr = "Paused"
-			stateColor = tcell.ColorDimGray
+			stateColor = t.MutedText
 		}
 		v.SetCell(row, 1, tview.NewTableCell(stateStr).SetTextColor(stateColor).SetBackgroundColor(bg))
 
-		v.SetCell(row, 2, tview.NewTableCell(dag.Schedule()).SetTextColor(tcell.ColorWhite).SetBackgroundColor(bg))
+		v.SetCell(row, 2, tview.NewTableCell(dag.Schedule()).SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 
 		ownerStr := ""
 		if len(dag.Owners) > 0 {
 			ownerStr = dag.Owners[0]
 		}
-		v.SetCell(row, 3, tview.NewTableCell(ownerStr).SetTextColor(tcell.ColorBlue).SetBackgroundColor(bg))
+		v.SetCell(row, 3, tview.NewTableCell(ownerStr).SetTextColor(t.Accent).SetBackgroundColor(bg))
 	}
 }
 
