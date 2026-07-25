@@ -193,49 +193,162 @@ func (t *TabBar) Root() *tview.TextView {
 
 // ---------- StatusBar ----------
 
+// StatusBar renders selection context (or a transient message) on the left and
+// context-sensitive key hints on the right. The two are kept apart so an action
+// result never wipes the hints.
 type StatusBar struct {
 	*tview.TextView
+
+	dagID, runID, taskID string
+	flash                string // transient status/error; outranks the selection info
+	tab                  string
+	hasDAG               bool
 }
 
 func NewStatusBar() *StatusBar {
-	s := &StatusBar{
-		TextView: tview.NewTextView(),
-	}
+	s := &StatusBar{TextView: tview.NewTextView(), tab: "runs"}
 	s.SetDynamicColors(true)
-	s.SetText(" [green]Ready[-]")
 	return s
 }
 
-func (s *StatusBar) SetStatus(msg string) {
-	s.SetText(" " + msg)
+// Draw recomposes the line for the current width before delegating, so the key
+// hints keep their space and the selection info is what shrinks.
+func (s *StatusBar) Draw(screen tcell.Screen) {
+	_, _, w, _ := s.GetRect()
+	s.SetText(s.compose(w))
+	s.TextView.Draw(screen)
 }
 
-func (s *StatusBar) SetInfo(dagId, runId, taskId string) {
-	parts := make([]string, 0, 4)
-	if dagId != "" {
-		parts = append(parts, fmt.Sprintf("DAG:[yellow]%s[-]", dagId))
+const statusSep = "  │  "
+
+func (s *StatusBar) compose(width int) string {
+	hints, hintsW := buildHints(s.tab, s.hasDAG)
+
+	// A flash carries caller-supplied markup of unknown width; let it clip.
+	left := s.flash
+	if left == "" {
+		left = s.infoSegment(width - 1 - len(statusSep) - hintsW)
 	}
-	if runId != "" {
-		display := runId
-		if len(display) > 30 {
-			display = display[:27] + "..."
+	return " " + left + statusSep + hints
+}
+
+// infoSegment renders as much selection context as budget allows, shrinking the
+// long, low-signal run id before dropping anything.
+func (s *StatusBar) infoSegment(budget int) string {
+	if s.dagID == "" && s.runID == "" && s.taskID == "" {
+		return "[green]Ready[-]"
+	}
+
+	var segs []seg
+	if s.dagID != "" {
+		segs = append(segs, seg{"DAG", s.dagID})
+	}
+	if s.runID != "" {
+		segs = append(segs, seg{"Run", s.runID})
+	}
+	if s.taskID != "" {
+		segs = append(segs, seg{"Task", s.taskID})
+	}
+
+	// Shrink the run id first; drop it entirely if even that does not fit.
+	for attempt := 0; attempt < len(segs); attempt++ {
+		out, w := renderSegs(segs)
+		if w <= budget || budget <= 0 {
+			return out
 		}
-		parts = append(parts, fmt.Sprintf("Run:[yellow]%s[-]", display))
+		if i := indexOfLabel(segs, "Run"); i >= 0 {
+			room := len(segs[i].value) - (w - budget)
+			if room >= 8 {
+				segs[i].value = segs[i].value[:room-1] + "…"
+				continue
+			}
+			segs = append(segs[:i], segs[i+1:]...)
+			continue
+		}
+		break
 	}
-	if taskId != "" {
-		parts = append(parts, fmt.Sprintf("Task:[yellow]%s[-]", taskId))
+	out, _ := renderSegs(segs)
+	return out
+}
+
+// seg is one "Label:value" chunk of the status bar info section.
+type seg struct{ label, value string }
+
+func indexOfLabel(segs []seg, label string) int {
+	for i, s := range segs {
+		if s.label == label {
+			return i
+		}
 	}
-	if len(parts) == 0 {
-		s.SetText(" [green]Ready[-]")
-		return
+	return -1
+}
+
+func renderSegs(segs []seg) (string, int) {
+	parts := make([]string, 0, len(segs))
+	width := 0
+	for i, sg := range segs {
+		parts = append(parts, fmt.Sprintf("%s:[yellow]%s[-]", sg.label, tview.Escape(sg.value)))
+		width += len(sg.label) + 1 + len(sg.value)
+		if i > 0 {
+			width += 3 // " | "
+		}
 	}
-	s.SetText(" " + strings.Join(parts, " | "))
+	return strings.Join(parts, " | "), width
+}
+
+func (s *StatusBar) SetStatus(msg string) {
+	s.flash = msg
 }
 
 func (s *StatusBar) SetError(msg string) {
-	s.SetText(fmt.Sprintf(" [red]Error: %s[-]", msg))
+	s.flash = fmt.Sprintf("[red]Error: %s[-]", msg)
 }
 
-func (s *StatusBar) Root() *tview.TextView {
-	return s.TextView
+func (s *StatusBar) SetInfo(dagId, runId, taskId string) {
+	s.dagID, s.runID, s.taskID = dagId, runId, taskId
+	s.flash = "" // a new selection supersedes the previous action result
+}
+
+// SetContext refreshes the key hints for the active tab and selection state.
+func (s *StatusBar) SetContext(tab string, hasDAG bool) {
+	s.tab, s.hasDAG = tab, hasDAG
+}
+
+// buildHints lists the keys that actually do something right now, returning the
+// markup and its visible width. Keep it short: it shares one line with the info.
+func buildHints(tab string, hasDAG bool) (string, int) {
+	var keys [][2]string // key, label
+	if hasDAG {
+		keys = append(keys, [2]string{"t", "trigger"}, [2]string{"p", "pause"}, [2]string{"b", "backfill"})
+	}
+	switch tab {
+	case "backfills":
+		keys = append(keys, [2]string{"c", "cancel"}, [2]string{"u", "unpause"})
+	case "monitor":
+		keys = append(keys, [2]string{"[", "prev"}, [2]string{"]", "next"}, [2]string{"r", "refresh"})
+	case "tasks":
+		keys = append(keys, [2]string{"g", "gantt"})
+	case "lineage":
+		keys = append(keys, [2]string{"g", "graph"})
+	}
+	if len(keys) == 0 {
+		keys = append(keys, [2]string{"Enter", "select a DAG"})
+	}
+
+	parts := make([]string, 0, len(keys))
+	width := 0
+	for i, k := range keys {
+		parts = append(parts, fmt.Sprintf("[yellow]%s[-][gray]:%s[-]", tview.Escape(k[0]), k[1]))
+		width += len(k[0]) + 1 + len(k[1])
+		if i > 0 {
+			width += 2
+		}
+	}
+	return strings.Join(parts, "  "), width
+}
+
+// Root returns the StatusBar itself, not the embedded TextView: the wrapper's
+// Draw is what composes the line for the current width.
+func (s *StatusBar) Root() tview.Primitive {
+	return s
 }

@@ -207,6 +207,14 @@ func main() {
 		}
 	})
 
+	// Key hints follow the active tab and whether a DAG is selected.
+	updateHints := func() {
+		tab, hasDAG := store.ActiveTab(), store.SelectedDAG() != ""
+		dispatcher.Post(func() { mainLayout.StatusBar().SetContext(tab, hasDAG) })
+	}
+	store.Subscribe(state.EventTabChanged, func(_ any) { updateHints() })
+	store.Subscribe(state.EventDAGSelected, func(_ any) { updateHints() })
+
 	// Selection → update status bar
 	// NOTE: These subscribers are called synchronously from tview's main goroutine
 	// (via SetSelectedFunc → store.Select*). dispatcher.Post is non-blocking so it
