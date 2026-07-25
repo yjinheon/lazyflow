@@ -37,7 +37,6 @@ type CacheConfig struct {
 }
 
 type UIConfig struct {
-	Theme            string           `yaml:"theme"`
 	RefreshIntervals RefreshIntervals `yaml:"refresh_intervals"`
 	// RollupWindow is the lookback window for the cluster KPI bar and per-DAG
 	// run-count panel. Parsed by ParseDuration (Go duration; max unit "h", so
@@ -68,7 +67,6 @@ func DefaultConfig() Config {
 			},
 		},
 		UI: UIConfig{
-			Theme: "dark",
 			RefreshIntervals: RefreshIntervals{
 				DAGs:   "5s",
 				Runs:   "3s",

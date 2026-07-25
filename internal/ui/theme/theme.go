@@ -45,44 +45,46 @@ type Theme struct {
 	SectionHeader tcell.Color
 }
 
-// DefaultDarkTheme implements a dark theme inspired by kdash/lazydocker
-var DefaultDarkTheme = Theme{
-	Name: "dark",
+// TokyoNightStorm is the sole UI theme, taken from the Tokyo Night Storm palette.
+var TokyoNightStorm = Theme{
+	Name: "tokyo-night-storm",
 
-	PrimaryBg:   tcell.NewRGBColor(24, 24, 27), // zinc-900
-	SecondaryBg: tcell.NewRGBColor(39, 39, 42), // zinc-800
-	TertiaryBg:  tcell.NewRGBColor(63, 63, 70), // zinc-700
+	PrimaryBg:   hex(0x24283b),
+	SecondaryBg: hex(0x1f2335),
+	TertiaryBg:  hex(0x292e42),
 
-	PrimaryText:   tcell.NewRGBColor(250, 250, 250), // zinc-50
-	SecondaryText: tcell.NewRGBColor(161, 161, 170), // zinc-400
-	MutedText:     tcell.NewRGBColor(113, 113, 122), // zinc-500
+	PrimaryText:   hex(0xc0caf5),
+	SecondaryText: hex(0xa9b1d6),
+	MutedText:     hex(0x8089b3),
 
-	StatusRunning:  tcell.NewRGBColor(59, 130, 246),  // blue-500
-	StatusSuccess:  tcell.NewRGBColor(34, 197, 94),   // green-500
-	StatusFailed:   tcell.NewRGBColor(239, 68, 68),   // red-500
-	StatusPaused:   tcell.NewRGBColor(251, 191, 36),  // amber-400
-	StatusQueued:   tcell.NewRGBColor(168, 85, 247),  // purple-500
-	StatusUpstream: tcell.NewRGBColor(107, 114, 128), // gray-500
-	StatusSkipped:  tcell.NewRGBColor(82, 82, 91),    // zinc-600
-	CriticalPath:   tcell.NewRGBColor(244, 114, 182), // pink-400
+	StatusRunning:  hex(0x7aa2f7), // blue
+	StatusSuccess:  hex(0x73daca), // green
+	StatusFailed:   hex(0xf7768e), // red
+	StatusPaused:   hex(0xe0af68), // yellow
+	StatusQueued:   hex(0xbb9af7), // magenta
+	StatusUpstream: hex(0x8089b3),
+	StatusSkipped:  hex(0x414868),
+	CriticalPath:   hex(0xff9e64), // orange
 
-	Accent:    tcell.NewRGBColor(99, 102, 241), // indigo-500
-	AccentDim: tcell.NewRGBColor(67, 56, 202),  // indigo-700
+	Accent:    hex(0x7aa2f7),
+	AccentDim: hex(0x6183bb),
 
-	BorderColor:   tcell.NewRGBColor(63, 63, 70),   // zinc-700
-	BorderFocused: tcell.NewRGBColor(99, 102, 241), // indigo-500
+	BorderColor:   hex(0x3b4261),
+	BorderFocused: hex(0x7aa2f7),
 
-	TableHeader:     tcell.NewRGBColor(63, 63, 70),
-	TableHeaderText: tcell.NewRGBColor(251, 191, 36), // amber-400
-	TableSelected:   tcell.NewRGBColor(55, 48, 163),  // indigo-800
-	TableRowAlt:     tcell.NewRGBColor(30, 30, 35),
+	TableHeader:     hex(0x292e42),
+	TableHeaderText: hex(0xe0af68),
+	TableSelected:   hex(0x3b4261),
+	TableRowAlt:     hex(0x1f2335),
 
-	SectionHeader: tcell.NewRGBColor(34, 211, 238), // cyan-400
+	SectionHeader: hex(0x7dcfff), // cyan
 }
+
+func hex(v int32) tcell.Color { return tcell.NewHexColor(v) }
 
 // active tracks the most recently applied theme so helpers can resolve
 // theme tokens (e.g. GanttMarkupColor) without taking explicit args.
-var active = DefaultDarkTheme
+var active = TokyoNightStorm
 
 // ActiveTheme returns the theme most recently passed to ApplyTheme.
 func ActiveTheme() Theme { return active }

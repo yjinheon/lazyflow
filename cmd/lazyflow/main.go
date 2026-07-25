@@ -61,7 +61,7 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	theme.ApplyTheme(theme.DefaultDarkTheme)
+	theme.ApplyTheme(theme.TokyoNightStorm)
 	mainLayout := layout.NewMainLayout(tviewApp)
 	mainLayout.SetExecutionEmbedded(cfg.UI.ExecutionLayout == "embedded")
 	store := state.NewStore()
