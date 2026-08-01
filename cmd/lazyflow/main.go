@@ -80,18 +80,12 @@ func main() {
 	poller := app.NewPoller(context.Background())
 	defer poller.Stop()
 
-	// Lookback window for the cluster KPI bar and per-DAG run-count panel.
+	// Lookback window for the cluster KPI bar.
 	rollupWindow := app.ParseDuration(cfg.UI.RollupWindow, 168*time.Hour)
-	mainLayout.DagInfo().SetWindowLabel(windowLabel(rollupWindow))
 
-	// DagInfo run-filter mini panel → filter the Runs view and jump to it.
-	// Fires from the filter List's Enter handler on the tview main goroutine, so
-	// the layout/focus mutations below are safe to call directly.
-	mainLayout.DagInfo().SetOnFilterSelected(func(stateFilter string) {
-		mainLayout.Runs().SetStateFilter(stateFilter, time.Now().Add(-rollupWindow))
-		mainLayout.SwitchTab("runs")
-		store.SetActiveTab("runs")
-		tviewApp.SetFocus(mainLayout.Runs())
+	// Top KPI cards double as DAG-list filter tabs.
+	mainLayout.KpiBar().SetOnSelected(func(filter string) {
+		mainLayout.DagList().SetFilter(filter)
 	})
 
 	// ---------- Event wiring ----------
@@ -241,10 +235,8 @@ func main() {
 			dagId := store.SelectedDAG()
 			runs := store.GetDAGRuns(dagId)
 			mainLayout.Runs().Update(runs)
-			since := time.Now().Add(-rollupWindow)
-			running, success, failed := metrics.CountWindowStates(runs, since)
 			spark := views.RunSparkline(runs, 10)
-			mainLayout.DagInfo().UpdateRunStats(running, success, failed, spark)
+			mainLayout.DagInfo().UpdateRecentRuns(spark)
 		})
 	})
 
