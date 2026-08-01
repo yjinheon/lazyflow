@@ -65,14 +65,15 @@ func (v *HelpView) render() {
 	row = v.addBinding(row, "r", "Refresh dashboard")
 
 	row = v.addSection(row+1, "DAG Filters")
+	row = v.addBinding(row, "← / → on KPI bar", "All / active / paused / run-state filters")
 	row = v.addBinding(row, "a", "Active DAGs")
 	row = v.addBinding(row, "A", "All DAGs")
 	row = v.addBinding(row, "f", "Failed DAGs")
 
 	row = v.addSection(row+1, "Focus")
-	row = v.addBinding(row, "Tab / Shift+Tab", "Cycle panels: DAG list → info → run-filter → cluster → tab")
+	row = v.addBinding(row, "Tab / Shift+Tab", "Cycle panels: DAG list → filters → info → cluster → tab")
 	row = v.addBinding(row, "d", "DAG list")
-	row = v.addBinding(row, "i", "DAG info run-filter (↑↓ select, Enter filters Runs)")
+	row = v.addBinding(row, "i", "DAG info")
 	row = v.addBinding(row, "o", "Cluster panel (press again to toggle pool compact/table)")
 
 	row = v.addSection(row+1, "General")

@@ -46,13 +46,18 @@ func (h *Header) Root() *tview.TextView {
 
 // ---------- KPI Bar ----------
 
-// KpiBar is the cluster-wide overview at the top of the screen. All five cards
-// are DAG counts and are independent of the current selection:
+// KpiBar is the cluster-wide overview and DAG-filter tab strip. Its cards show
+// counts and selecting one filters the DAG list:
+//   - all: every DAG
 //   - active/inactive: paused vs unpaused DAGs
 //   - running/success/failed: DAGs bucketed by their latest run's state
 type KpiBar struct {
-	root  *tview.Flex
-	cards map[string]*tview.TextView
+	root       *tview.Flex
+	cards      map[string]*tview.TextView
+	order      []string
+	titles     map[string]string
+	active     string
+	onSelected func(string)
 
 	activeDAGs   int
 	inactiveDAGs int
@@ -63,11 +68,14 @@ type KpiBar struct {
 
 func NewKpiBar() *KpiBar {
 	k := &KpiBar{
-		root:  tview.NewFlex().SetDirection(tview.FlexColumn),
-		cards: make(map[string]*tview.TextView),
+		root:   tview.NewFlex().SetDirection(tview.FlexColumn),
+		cards:  make(map[string]*tview.TextView),
+		titles: make(map[string]string),
+		active: "all",
 	}
+	k.addCard("all", "All", theme.ActiveTheme().PrimaryText)
 	k.addCard("active", "Active", theme.ActiveTheme().StatusSuccess)
-	k.addCard("inactive", "Paused", theme.ActiveTheme().StatusPaused)
+	k.addCard("paused", "Paused", theme.ActiveTheme().StatusPaused)
 	k.addCard("running", "Running", theme.ActiveTheme().StatusRunning)
 	k.addCard("success", "Success", theme.ActiveTheme().StatusSuccess)
 	k.addCard("failed", "Failed", theme.ActiveTheme().StatusFailed)
@@ -84,7 +92,58 @@ func (k *KpiBar) addCard(key, title string, color tcell.Color) {
 		SetTitleColor(color).
 		SetBorderColor(color)
 	k.cards[key] = card
-	k.root.AddItem(card, 0, 1, false)
+	k.order = append(k.order, key)
+	k.titles[key] = title
+	card.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyLeft:
+			k.selectRelative(-1)
+			return nil
+		case tcell.KeyRight:
+			k.selectRelative(1)
+			return nil
+		case tcell.KeyEnter:
+			k.selectFilter(k.active)
+			return nil
+		}
+		return event
+	})
+	k.root.AddItem(card, 0, 1, key == "all")
+}
+
+// SetOnSelected registers the callback invoked when a filter tab is selected.
+func (k *KpiBar) SetOnSelected(fn func(string)) { k.onSelected = fn }
+
+// ActiveFilter returns the selected DAG filter.
+func (k *KpiBar) ActiveFilter() string { return k.active }
+
+// FocusPrimitive returns the card that currently represents the filter strip
+// in the application's focus ring.
+func (k *KpiBar) FocusPrimitive() tview.Primitive { return k.cards["all"] }
+
+// SelectFilter selects a card programmatically (for keyboard aliases).
+func (k *KpiBar) SelectFilter(filter string) { k.selectFilter(filter) }
+
+func (k *KpiBar) selectRelative(delta int) {
+	idx := 0
+	for i, key := range k.order {
+		if key == k.active {
+			idx = i
+			break
+		}
+	}
+	k.selectFilter(k.order[(idx+delta+len(k.order))%len(k.order)])
+}
+
+func (k *KpiBar) selectFilter(filter string) {
+	if _, ok := k.cards[filter]; !ok {
+		return
+	}
+	k.active = filter
+	k.refresh()
+	if k.onSelected != nil {
+		k.onSelected(filter)
+	}
 }
 
 func (k *KpiBar) SetDAGCounts(active, inactive int) {
@@ -103,11 +162,22 @@ func (k *KpiBar) SetDAGStateCounts(running, success, failed int) {
 }
 
 func (k *KpiBar) refresh() {
+	k.setCard("all", k.activeDAGs+k.inactiveDAGs, "white")
 	k.setCard("active", k.activeDAGs, "green")
-	k.setCard("inactive", k.inactiveDAGs, "yellow")
+	k.setCard("paused", k.inactiveDAGs, "yellow")
 	k.setCard("running", k.runningDAGs, "blue")
 	k.setCard("success", k.successDAGs, "green")
 	k.setCard("failed", k.failedDAGs, "red")
+	for key, card := range k.cards {
+		title := fmt.Sprintf(" %s ", k.titles[key])
+		if key == k.active {
+			title = fmt.Sprintf(" [::b]%s[::-] ", k.titles[key])
+			card.SetBorderColor(theme.ActiveTheme().BorderFocused)
+		} else {
+			card.SetBorderColor(theme.ActiveTheme().BorderColor)
+		}
+		card.SetTitle(title)
+	}
 }
 
 func (k *KpiBar) setCard(key string, value int, color string) {

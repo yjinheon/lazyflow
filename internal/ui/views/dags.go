@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -14,7 +15,7 @@ type DagListView struct {
 	*tview.Table
 	allDags     []models.DAG // unfiltered
 	dags        []models.DAG // currently displayed (filtered)
-	filterMode  string       // "all", "active", "failed"
+	filterMode  string       // "all", "active", "paused", or latest-run state
 	searchQuery string
 	activeDagId string // committed via Enter; distinct from the cursor row
 	onSelected  func(dagId string)
@@ -73,7 +74,7 @@ func (v *DagListView) emptyHint() string {
 		return "No DAGs match this search — press Esc then / to search again."
 	}
 	if v.filterMode != "all" {
-		return "No DAGs in this filter — press A for all DAGs."
+		return "No DAGs in this filter — select All above or press A."
 	}
 	return "No DAGs loaded yet — press F5 to refresh."
 }
@@ -123,14 +124,20 @@ func (v *DagListView) applyFilter() {
 				filtered = append(filtered, d)
 			}
 		}
-	case "failed":
+	case "paused":
 		for _, d := range v.allDags {
-			if d.LastRunState == "failed" {
+			if d.IsPaused {
+				filtered = append(filtered, d)
+			}
+		}
+	case "running", "success", "failed":
+		for _, d := range v.allDags {
+			if d.LastRunState == v.filterMode {
 				filtered = append(filtered, d)
 			}
 		}
 	default:
-		filtered = v.allDags
+		filtered = append([]models.DAG(nil), v.allDags...)
 	}
 
 	if v.searchQuery != "" {
@@ -144,6 +151,15 @@ func (v *DagListView) applyFilter() {
 		}
 		filtered = matched
 	}
+
+	// Keep every view deterministic. In All, unpaused DAGs form the first
+	// group; within each group DAG IDs are ordered case-insensitively.
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if v.filterMode == "all" && filtered[i].IsPaused != filtered[j].IsPaused {
+			return !filtered[i].IsPaused
+		}
+		return filtered[i].DagId < filtered[j].DagId
+	})
 
 	v.dags = filtered
 }

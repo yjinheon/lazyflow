@@ -74,7 +74,7 @@ func (v *RunsView) titleText() string {
 
 func (v *RunsView) emptyHint() string {
 	if v.stateFilter != "" {
-		return "No runs in this state — pick All in the Runs filter (i)."
+		return "No runs in this state."
 	}
 	return "No runs for this DAG — press t to trigger one, or b to backfill."
 }

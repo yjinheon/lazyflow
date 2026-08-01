@@ -118,3 +118,39 @@ func TestDagListHintIsContextual(t *testing.T) {
 		t.Error("searched empty state should differ from the default hint")
 	}
 }
+
+func TestDagListOrdersActiveFirstThenDagID(t *testing.T) {
+	v := NewDagListView()
+	v.Update([]models.DAG{
+		{DagId: "z_paused", IsPaused: true},
+		{DagId: "beta"},
+		{DagId: "a_paused", IsPaused: true},
+		{DagId: "Alpha"},
+	})
+
+	want := []string{"Alpha", "beta", "a_paused", "z_paused"}
+	for i, id := range want {
+		if got := v.dags[i].DagId; got != id {
+			t.Fatalf("row %d = %q, want %q (all=%v)", i, got, id, v.dags)
+		}
+	}
+}
+
+func TestDagListStatusFilters(t *testing.T) {
+	v := NewDagListView()
+	v.Update([]models.DAG{
+		{DagId: "paused", IsPaused: true},
+		{DagId: "run", LastRunState: "running"},
+		{DagId: "ok", LastRunState: "success"},
+		{DagId: "bad", LastRunState: "failed"},
+	})
+
+	for filter, want := range map[string]string{
+		"paused": "paused", "running": "run", "success": "ok", "failed": "bad",
+	} {
+		v.SetFilter(filter)
+		if len(v.dags) != 1 || v.dags[0].DagId != want {
+			t.Errorf("filter %q = %v, want only %q", filter, v.dags, want)
+		}
+	}
+}

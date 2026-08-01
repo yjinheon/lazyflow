@@ -200,13 +200,13 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 
 	// DAG filters
 	case 'a':
-		kb.layout.DagList().SetFilter("active")
+		kb.layout.KpiBar().SelectFilter("active")
 		return nil
 	case 'A':
-		kb.layout.DagList().SetFilter("all")
+		kb.layout.KpiBar().SelectFilter("all")
 		return nil
 	case 'f':
-		kb.layout.DagList().SetFilter("failed")
+		kb.layout.KpiBar().SelectFilter("failed")
 		return nil
 
 	// Focus movement
@@ -214,7 +214,7 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		kb.app.SetFocus(kb.layout.DagList())
 		return nil
 	case 'i':
-		kb.app.SetFocus(kb.layout.DagInfo().FilterList())
+		kb.app.SetFocus(kb.layout.DagInfo().Meta())
 		return nil
 
 	// Cluster panel: focus, or toggle pool view when already focused
@@ -302,8 +302,8 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 func (kb *KeyBindings) focusRing() []tview.Primitive {
 	return []tview.Primitive{
 		kb.layout.DagList(),
+		kb.layout.KpiBar().FocusPrimitive(),
 		kb.layout.DagInfo().Meta(),
-		kb.layout.DagInfo().FilterList(),
 		kb.layout.ClusterInfo(),
 		kb.layout.ActiveTabPrimitive(),
 	}

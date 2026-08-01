@@ -172,7 +172,7 @@ func TestEmptyTableNavigationDoesNotHang(t *testing.T) {
 		l.Connections().Root(),
 		l.Variables().Root(),
 		l.Config().Root(),
-		l.DagInfo().FilterList(),
+		l.KpiBar().FocusPrimitive(),
 	}
 
 	done := make(chan struct{})
