@@ -134,13 +134,13 @@ func main() {
 	var monitorMu sync.Mutex
 	backfilledDAGs := map[string]bool{}
 
-	backfillMonitorHistory := func(dagId string) {
+	backfillMonitorHistory := func(dagId string) error {
 		monitorMu.Lock()
 		done := backfilledDAGs[dagId]
 		backfilledDAGs[dagId] = true
 		monitorMu.Unlock()
 		if done {
-			return
+			return nil
 		}
 		ctx := context.Background()
 		oldest := time.Now().Add(-30 * 24 * time.Hour)
@@ -151,21 +151,22 @@ func main() {
 			})
 			if err != nil {
 				log.Printf("[ERROR] monitor backfill %s: %v", dagId, err)
-				return
+				return err
 			}
 			if len(res.DAGRuns) == 0 {
-				return
+				return nil
 			}
 			bfCache.PutDAGRuns(dagId, res.DAGRuns)
 			total += len(res.DAGRuns)
 			last := res.DAGRuns[len(res.DAGRuns)-1]
 			if total >= 500 || (!last.RunAfter.IsZero() && last.RunAfter.Before(oldest)) {
-				return
+				return nil
 			}
 			if len(res.DAGRuns) < 100 {
-				return
+				return nil
 			}
 		}
+		return nil
 	}
 
 	refreshMonitor := func() {
@@ -178,8 +179,13 @@ func main() {
 			dispatcher.Post(func() { mainLayout.Monitor().Update("", nil, nil) })
 			return
 		}
+		dispatcher.Post(func() {
+			if store.SelectedDAG() == dagId && store.ActiveTab() == "monitor" {
+				mainLayout.Monitor().SetLoading(dagId)
+			}
+		})
 		go func() {
-			backfillMonitorHistory(dagId)
+			backfillErr := backfillMonitorHistory(dagId)
 			since := time.Now().Add(-window)
 			runs, _ := bfCache.GetDAGRunsHistory(dagId, since, 1000)
 			tasks, _ := bfCache.GetTaskInstancesHistory(dagId, since, 5000)
@@ -189,6 +195,9 @@ func main() {
 					return
 				}
 				mainLayout.Monitor().Update(dagId, runs, tasks)
+				if backfillErr != nil {
+					mainLayout.Monitor().SetError(dagId, backfillErr.Error())
+				}
 			})
 		}()
 	}

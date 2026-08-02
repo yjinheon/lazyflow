@@ -1,5 +1,5 @@
 airflow:
-  base_url: 'http://localhost:28080'
+  base_url: 'http://g14:28080'
   timeout: '30s'
   auth:
     type: basic
@@ -14,7 +14,6 @@ cache:
   fallback_to_memory: true
 
 ui:
-  theme: dark
   refresh_intervals:
     dags: '5s'
     runs: '3s'
