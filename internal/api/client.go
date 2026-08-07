@@ -291,11 +291,14 @@ func (c *Client) GetTaskLogs(ctx context.Context, dagId, runId, taskId string, t
 		return "", c.readError(resp)
 	}
 
-	// Airflow 3 returns JSON: {"content":[{"event":"...","timestamp":"..."}, ...]}
+	// Airflow 3 returns JSON:
+	// {"content":[{"event":"...","timestamp":"...","level":"info","logger":"task"}, ...]}
 	var logResp struct {
 		Content []struct {
 			Event     string `json:"event"`
 			Timestamp string `json:"timestamp"`
+			Level     string `json:"level"`
+			Logger    string `json:"logger"`
 		} `json:"content"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&logResp); err != nil {
@@ -304,13 +307,27 @@ func (c *Client) GetTaskLogs(ctx context.Context, dagId, runId, taskId string, t
 
 	var result strings.Builder
 	for _, entry := range logResp.Content {
-		if entry.Timestamp != "" {
-			result.WriteString(fmt.Sprintf("[%s] %s\n", entry.Timestamp, entry.Event))
-		} else {
-			result.WriteString(entry.Event + "\n")
-		}
+		result.WriteString(formatLogLine(entry.Timestamp, entry.Logger, entry.Level, entry.Event))
 	}
 	return result.String(), nil
+}
+
+// formatLogLine renders one structured log entry as the classic Airflow line
+// "[ts] {logger} LEVEL - message", omitting whichever fields the entry lacks.
+func formatLogLine(timestamp, logger, level, event string) string {
+	var b strings.Builder
+	if timestamp != "" {
+		b.WriteString("[" + timestamp + "] ")
+	}
+	if logger != "" {
+		b.WriteString("{" + logger + "} ")
+	}
+	if level != "" {
+		b.WriteString(strings.ToUpper(level) + " - ")
+	}
+	b.WriteString(event)
+	b.WriteByte('\n')
+	return b.String()
 }
 
 // ---------- Health ----------

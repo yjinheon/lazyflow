@@ -43,15 +43,10 @@ type MainLayout struct {
 	variablesView     *views.VariablesView
 	monitorView       *views.MonitorView
 	lineageView       *views.LineageView
-	backfillsView     *views.BackfillsView
-	helpView          *views.HelpView
-	executionView     *views.ExecutionView
-	executionOpen     bool
-	executionClose    func()
-	executionEmbedded bool
-	prevTab           string
-	modalOpen         bool
-	searchOpen        bool
+	backfillsView *views.BackfillsView
+	helpView      *views.HelpView
+	modalOpen     bool
+	searchOpen    bool
 
 	tabContent *tview.Pages
 }
@@ -78,7 +73,6 @@ func NewMainLayout(app *tview.Application) *MainLayout {
 		lineageView:     views.NewLineageView(),
 		backfillsView:   views.NewBackfillsView(),
 		helpView:        views.NewHelpView(),
-		executionView:   views.NewExecutionView(),
 
 		tabContent: tview.NewPages(),
 	}
@@ -168,75 +162,6 @@ func (m *MainLayout) HideSearch() {
 // IsSearchVisible reports whether the search overlay is currently open.
 func (m *MainLayout) IsSearchVisible() bool { return m.searchOpen }
 
-// SetExecutionEmbedded selects how the run drill-in is mounted. When true, the
-// execution view is registered as a page inside the bottom tab area and shown
-// via tab switching (SPA-style); when false it overlays the whole screen.
-// Must be called before the first ShowExecution.
-func (m *MainLayout) SetExecutionEmbedded(embedded bool) {
-	if embedded && !m.executionEmbedded {
-		m.tabContent.AddPage("execution", m.executionView.Root(), true, false)
-	}
-	m.executionEmbedded = embedded
-}
-
-// ShowExecution opens the Live Run drill-in. In embedded mode it switches the
-// bottom tab area to the execution page; otherwise it overlays the full screen.
-func (m *MainLayout) ShowExecution(onClose func()) {
-	m.executionOpen = true
-	m.executionClose = onClose
-
-	m.executionView.Flex.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
-		switch ev.Key() {
-		case tcell.KeyEsc:
-			m.HideExecution()
-			return nil
-		}
-		return ev
-	})
-
-	if m.executionEmbedded {
-		m.prevTab = m.tabBar.Active()
-		m.tabContent.SwitchToPage("execution")
-		m.app.SetFocus(m.executionView.TaskList())
-		return
-	}
-
-	overlay := tview.NewPages().
-		AddPage("main", m.root, true, true).
-		AddPage("execution", m.executionView.Root(), true, true)
-	m.app.SetRoot(overlay, true)
-	m.app.SetFocus(m.executionView.TaskList())
-}
-
-// HideExecution tears the drill-in down and restores the main layout.
-func (m *MainLayout) HideExecution() {
-	if !m.executionOpen {
-		return
-	}
-	onClose := m.executionClose
-	m.executionOpen = false
-	m.executionClose = nil
-	m.executionView.Flex.SetInputCapture(nil)
-
-	if m.executionEmbedded {
-		tab := m.prevTab
-		if tab == "" || tab == "execution" {
-			tab = "runs"
-		}
-		m.SwitchTab(tab)
-		m.app.SetFocus(m.runsView)
-	} else {
-		m.app.SetRoot(m.root, true)
-		m.app.SetFocus(m.runsView)
-	}
-
-	if onClose != nil {
-		onClose()
-	}
-}
-
-func (m *MainLayout) IsExecutionVisible() bool { return m.executionOpen }
-
 func centerPrimitive(p tview.Primitive, width, height int) tview.Primitive {
 	return tview.NewFlex().
 		AddItem(nil, 0, 1, false).
@@ -294,7 +219,7 @@ func (m *MainLayout) Monitor() *views.MonitorView         { return m.monitorView
 func (m *MainLayout) Lineage() *views.LineageView         { return m.lineageView }
 func (m *MainLayout) Backfills() *views.BackfillsView     { return m.backfillsView }
 func (m *MainLayout) Help() *views.HelpView               { return m.helpView }
-func (m *MainLayout) Execution() *views.ExecutionView     { return m.executionView }
+func (m *MainLayout) Execution() *views.ExecutionView     { return m.tasksView.Run() }
 func (m *MainLayout) StatusBar() *StatusBar               { return m.statusBar }
 func (m *MainLayout) Header() *Header                     { return m.header }
 func (m *MainLayout) KpiBar() *KpiBar                     { return m.kpiBar }

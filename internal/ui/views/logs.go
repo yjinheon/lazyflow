@@ -23,6 +23,12 @@ func (v *LogsView) SetContent(text string) {
 	v.ScrollToEnd()
 }
 
+// SetHighlighted takes pre-rendered markup from HighlightLogs.
+func (v *LogsView) SetHighlighted(markup string) {
+	v.SetText(markup)
+	v.ScrollToEnd()
+}
+
 func (v *LogsView) SetMessage(msg string) {
 	v.SetText("[gray]" + tview.Escape(msg))
 	v.ScrollToBeginning()

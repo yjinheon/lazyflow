@@ -63,7 +63,6 @@ func main() {
 
 	theme.ApplyTheme(theme.TokyoNightStorm)
 	mainLayout := layout.NewMainLayout(tviewApp)
-	mainLayout.SetExecutionEmbedded(cfg.UI.ExecutionLayout == "embedded")
 	store := state.NewStore()
 	bfCache := newHistoryCache(cfg)
 	defer bfCache.Close()
@@ -254,12 +253,10 @@ func main() {
 	store.Subscribe(state.EventTaskInstancesUpdated, func(_ any) {
 		dispatcher.Post(func() {
 			tis := store.GetTaskInstances(store.SelectedDAG(), store.SelectedRun())
+			mainLayout.Tasks().UpdateRun(selectedRun(store), tis, store.GetTasks(store.SelectedDAG()), store.GetCriticalPath())
 			if store.GanttMode() {
 				mainLayout.Tasks().UpdateGantt(store.SelectedRun(), tis, store.GetCriticalPath())
-			} else {
-				mainLayout.Tasks().Update(tis)
 			}
-			mainLayout.Execution().UpdateRun(selectedRun(store), tis, store.GetTasks(store.SelectedDAG()), store.GetCriticalPath())
 			if mainLayout.Lineage().IsGraphMode() {
 				mainLayout.Lineage().UpdateGraph(stateByTask(tis))
 			}
@@ -291,7 +288,7 @@ func main() {
 	store.Subscribe(state.EventCriticalPathChanged, func(_ any) {
 		dispatcher.Post(func() {
 			tis := store.GetTaskInstances(store.SelectedDAG(), store.SelectedRun())
-			mainLayout.Execution().UpdateRun(selectedRun(store), tis, store.GetTasks(store.SelectedDAG()), store.GetCriticalPath())
+			mainLayout.Tasks().UpdateRun(selectedRun(store), tis, store.GetTasks(store.SelectedDAG()), store.GetCriticalPath())
 			if !store.GanttMode() {
 				return
 			}
@@ -341,6 +338,7 @@ func main() {
 		defer debugutil.Tag("FZ-evt", "DagList.OnSelected END dagId=%s", dagId)
 		store.SelectDAG(dagId)
 		poller.StopSub("tasks")
+		poller.StopSub("exec-logs")
 		store.SetCriticalPath(nil)
 		mainLayout.Runs().ClearFilter() // new DAG → drop any stale run-state filter
 		mainLayout.Tasks().UpdateDefinitions(dagId, nil)
@@ -392,22 +390,25 @@ func main() {
 		}()
 	})
 
-	// Run selected -> open Execution drill-in and fetch task instances.
+	// Run selected -> drill down to the tasks tab (run dashboard) and fetch task instances.
 	mainLayout.Runs().SetOnSelected(func(runId string) {
 		debugutil.Tag("FZ-evt", "Runs.OnSelected START runId=%s", runId)
 		defer debugutil.Tag("FZ-evt", "Runs.OnSelected END runId=%s", runId)
 		store.SelectRun(runId)
 		dagId := store.SelectedDAG()
 		run := selectedRun(store)
+		poller.StopSub("exec-logs")
 
 		mainLayout.Execution().SetLogMessage("Select a task to view logs")
-		mainLayout.Execution().UpdateRun(run,
+		mainLayout.Tasks().UpdateRun(run,
 			store.GetTaskInstances(dagId, runId),
 			store.GetTasks(dagId),
 			store.GetCriticalPath())
-		mainLayout.ShowExecution(func() {
-			poller.StopSub("exec-logs")
-		})
+
+		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
+		mainLayout.SwitchTab("tasks")
+		store.SetActiveTab("tasks")
+		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
 
 		go func() {
 			ctx := context.Background()
@@ -435,23 +436,39 @@ func main() {
 		}
 	})
 
-	// Execution task selection -> fetch logs and poll while task is running.
-	mainLayout.Execution().SetOnTaskSelected(func(taskId string) {
+	// Task selected (definitions table or run dashboard) → load logs into both
+	// the dashboard preview pane and the logs tab, and tail while it runs.
+	mainLayout.Tasks().SetOnSelected(func(taskId string) {
+		debugutil.Tag("FZ-evt", "Tasks.OnSelected START taskId=%s", taskId)
+		defer debugutil.Tag("FZ-evt", "Tasks.OnSelected END taskId=%s", taskId)
 		store.SelectTask(taskId)
 		dagId := store.SelectedDAG()
 		runId := store.SelectedRun()
 		if runId == "" {
+			mainLayout.StatusBar().SetStatus(fmt.Sprintf("[yellow]Task %s selected. Select a DAG run to view logs.[-]", taskId))
+			mainLayout.Logs().SetMessage("Task logs require a selected DAG run")
 			return
 		}
+
 		fetchLogs := func(ctx context.Context) {
 			logs, err := client.GetTaskLogs(ctx, dagId, runId, taskId, 1)
 			if err != nil {
-				log.Printf("[ERROR] Execution GetTaskLogs: %v", err)
-				dispatcher.Post(func() { mainLayout.Execution().SetLogError(err.Error()) })
+				log.Printf("[ERROR] GetTaskLogs: %v", err)
+				dispatcher.Post(func() {
+					mainLayout.Logs().SetError(err.Error())
+					mainLayout.Execution().SetLogError(err.Error())
+				})
 				return
 			}
-			dispatcher.Post(func() { mainLayout.Execution().SetLogs(logs) })
+			log.Printf("[DATA] TaskLogs fetched: %d chars", len(logs))
+			// Highlight off the tview goroutine; it is CPU-bound.
+			markup := views.HighlightLogs(logs)
+			dispatcher.Post(func() {
+				mainLayout.Logs().SetHighlighted(markup)
+				mainLayout.Execution().SetHighlightedLogs(markup)
+			})
 		}
+		mainLayout.Logs().SetMessage("Loading logs...")
 		mainLayout.Execution().SetLogMessage("Loading logs...")
 		go fetchLogs(context.Background())
 
@@ -467,37 +484,6 @@ func main() {
 		} else {
 			poller.StopSub("exec-logs")
 		}
-	})
-
-	// Task selected → fetch logs + drill down to Logs tab
-	mainLayout.Tasks().SetOnSelected(func(taskId string) {
-		debugutil.Tag("FZ-evt", "Tasks.OnSelected START taskId=%s", taskId)
-		defer debugutil.Tag("FZ-evt", "Tasks.OnSelected END taskId=%s", taskId)
-		store.SelectTask(taskId)
-		dagId := store.SelectedDAG()
-		runId := store.SelectedRun()
-		if runId == "" {
-			mainLayout.StatusBar().SetStatus(fmt.Sprintf("[yellow]Task %s selected. Select a DAG run to view logs.[-]", taskId))
-			mainLayout.Logs().SetMessage("Task logs require a selected DAG run")
-			return
-		}
-
-		// SwitchTab/SetFocus run synchronously on the tview main goroutine because SetSelectedFunc fires from there — do NOT wrap in dispatcher.Post.
-		mainLayout.SwitchTab("logs")
-		store.SetActiveTab("logs")
-		tviewApp.SetFocus(mainLayout.ActiveTabPrimitive())
-
-		go func() {
-			ctx := context.Background()
-			logs, err := client.GetTaskLogs(ctx, dagId, runId, taskId, 1)
-			if err != nil {
-				log.Printf("[ERROR] GetTaskLogs: %v", err)
-				dispatcher.Post(func() { mainLayout.Logs().SetError(err.Error()) })
-				return
-			}
-			log.Printf("[DATA] TaskLogs fetched: %d chars", len(logs))
-			dispatcher.Post(func() { mainLayout.Logs().SetContent(logs) })
-		}()
 	})
 
 	// Backfills view selection callback

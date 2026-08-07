@@ -168,7 +168,7 @@ func (v *ExecutionView) renderSummary(run models.DAGRun, tis []models.TaskInstan
 		start = run.StartDate.Format("01-02 15:04:05")
 	}
 	v.summary.SetText(fmt.Sprintf(
-		" [%s]%s %s[-]  -  %s  -  [green]%d/%d done[-] - [red]%d failed[-] - [gray]%d queued[-]  -  [gray]Esc back / Tab focus[-]",
+		" [%s]%s %s[-]  -  %s  -  [green]%d/%d done[-] - [red]%d failed[-] - [gray]%d queued[-]  -  [gray]Enter load logs / 3 full logs[-]",
 		theme.MarkupHex(color), sym, run.RunId, start, s.Done, s.Total, s.Failed, s.Queued))
 }
 
@@ -221,6 +221,12 @@ func (v *ExecutionView) renderMiniDAG() {
 
 func (v *ExecutionView) SetLogs(text string) {
 	v.logs.SetText(tview.Escape(text))
+	v.logs.ScrollToEnd()
+}
+
+// SetHighlightedLogs takes pre-rendered markup from HighlightLogs.
+func (v *ExecutionView) SetHighlightedLogs(markup string) {
+	v.logs.SetText(markup)
 	v.logs.ScrollToEnd()
 }
 

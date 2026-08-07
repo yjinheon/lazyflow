@@ -35,8 +35,8 @@ func (v *HelpView) render() {
 	row = v.addBinding(row, "h / l  ·  ← / →", "Scroll columns left / right")
 	row = v.addBinding(row, "g / G", "Jump to top / bottom")
 	row = v.addBinding(row, "PgUp / PgDn", "Page up / down")
-	row = v.addBinding(row, "Enter", "Select / drill down")
-	row = v.addBinding(row, "Esc", "Close modal, execution view, or return focus to DAG list")
+	row = v.addBinding(row, "Enter", "Select / drill down (DAG → runs → tasks → logs)")
+	row = v.addBinding(row, "Esc", "Back up one level (logs → tasks → runs), else focus DAG list")
 
 	row = v.addSection(row+1, "Tabs")
 	row = v.addBinding(row, "1-7", "Pipeline tabs: runs, tasks, logs, code, lineage, monitor, backfills")

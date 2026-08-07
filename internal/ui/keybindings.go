@@ -27,6 +27,16 @@ var tabNames = []struct {
 	{'?', "help"},
 }
 
+// tabForRune resolves a digit key to its tab name.
+func tabForRune(r rune) (string, bool) {
+	for _, t := range tabNames {
+		if t.key == r && r != '?' {
+			return t.name, true
+		}
+	}
+	return "", false
+}
+
 type KeyBindings struct {
 	app    *tview.Application
 	layout *layout.MainLayout
@@ -72,19 +82,6 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	}()
 	debugutil.Tag("FZ-key", "handle key=%v rune=%q", event.Key(), event.Rune())
 
-	if kb.layout.IsExecutionVisible() {
-		switch event.Key() {
-		case tcell.KeyCtrlC:
-			kb.app.Stop()
-			return nil
-		case tcell.KeyEsc:
-			kb.layout.HideExecution()
-			return nil
-		default:
-			return event
-		}
-	}
-
 	if kb.layout.IsSearchVisible() {
 		switch event.Key() {
 		case tcell.KeyCtrlC:
@@ -125,7 +122,18 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 		}
 		return nil
 	case tcell.KeyEsc:
-		// Reset focus to DAG list
+		// Inside the tab area Esc unwinds the drill-down chain; elsewhere it
+		// parks focus back on the DAG list.
+		if kb.inTabArea() {
+			switch kb.store.ActiveTab() {
+			case "logs":
+				kb.switchToTab("tasks")
+				return nil
+			case "tasks":
+				kb.switchToTab("runs")
+				return nil
+			}
+		}
 		kb.app.SetFocus(kb.layout.DagList())
 		return nil
 	case tcell.KeyTab:
@@ -153,13 +161,9 @@ func (kb *KeyBindings) handle(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	// Tab switching (0-9)
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		for _, t := range tabNames {
-			if event.Rune() == t.key {
-				kb.layout.SwitchTab(t.name)
-				kb.store.SetActiveTab(t.name)
-				kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
-				return nil
-			}
+		if name, ok := tabForRune(event.Rune()); ok {
+			kb.switchToTab(name)
+			return nil
 		}
 
 	// Tab cycling; rune fallback for terminals that swallow Shift+arrows.
@@ -309,6 +313,22 @@ func (kb *KeyBindings) focusRing() []tview.Primitive {
 	}
 }
 
+// inTabArea reports whether focus sits in the bottom tab area rather than on
+// one of the top panels (the ring's last stop is the active tab).
+func (kb *KeyBindings) inTabArea() bool {
+	focused := kb.app.GetFocus()
+	if focused == nil {
+		return false
+	}
+	ring := kb.focusRing()
+	for _, p := range ring[:len(ring)-1] {
+		if p == focused {
+			return false
+		}
+	}
+	return true
+}
+
 // cycleFocus moves focus by delta (+1 Tab, -1 Shift+Tab) around focusRing. If the
 // current focus isn't in the ring (e.g. an overlay), it lands on the first stop.
 func (kb *KeyBindings) cycleFocus(delta int) {
@@ -340,6 +360,13 @@ var cycleTabNames = func() []string {
 	}
 	return out
 }()
+
+// switchToTab activates a bottom tab and moves focus into it.
+func (kb *KeyBindings) switchToTab(name string) {
+	kb.layout.SwitchTab(name)
+	kb.store.SetActiveTab(name)
+	kb.app.SetFocus(kb.layout.ActiveTabPrimitive())
+}
 
 func (kb *KeyBindings) cycleTab(delta int) {
 	cur := kb.store.ActiveTab()

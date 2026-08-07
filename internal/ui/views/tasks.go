@@ -9,24 +9,25 @@ import (
 	"github.com/yjinheon/lazyflow/pkg/airflow/models"
 )
 
-// TasksView is a Pages wrapper showing either a Table (default) or a Gantt
-// view of the same TaskInstance slice. The active page is controlled by
-// SetGanttMode (set from the keybindings layer in response to the `g` key).
+// TasksView is the tasks tab. It shows the DAG's task definitions when no run
+// is selected, the run dashboard once one is, and the Gantt chart under `g`.
 type TasksView struct {
 	*tview.Pages
 
 	table *tview.Table
 	gantt *GanttView
+	run   *ExecutionView
 
-	taskInstances      []models.TaskInstance
-	taskDefinitions    []models.Task
-	showingDefinitions bool
-	activeTaskId       string // committed via Enter; distinct from the cursor row
-	onSelected         func(taskId string)
+	taskDefinitions []models.Task
+	activeTaskId    string
+	hasRun          bool
+	ganttMode       bool
+	onSelected      func(taskId string)
 }
 
 const (
-	tasksPageTable = "table"
+	tasksPageDefs  = "definitions"
+	tasksPageRun   = "run"
 	tasksPageGantt = "gantt"
 )
 
@@ -35,15 +36,18 @@ func NewTasksView() *TasksView {
 		Pages: tview.NewPages(),
 		table: tview.NewTable(),
 		gantt: NewGanttView(),
+		run:   NewExecutionView(),
 	}
 	v.setupTable()
-	v.AddPage(tasksPageTable, v.table, true, true)
+	v.run.SetOnTaskSelected(v.selectTask)
+	v.AddPage(tasksPageDefs, v.table, true, true)
+	v.AddPage(tasksPageRun, v.run.Root(), true, false)
 	v.AddPage(tasksPageGantt, v.gantt, true, false)
 	return v
 }
 
 func (v *TasksView) setupTable() {
-	v.table.SetBorder(true).SetTitle(" Task Instances ")
+	v.table.SetBorder(true).SetTitle(" DAG Tasks ")
 	v.table.SetSelectable(false, false)
 	v.table.SetFixed(1, 0)
 	v.table.SetSelectedStyle(tcell.StyleDefault.
@@ -53,22 +57,11 @@ func (v *TasksView) setupTable() {
 	v.table.SetFocusFunc(func() { v.table.SetBorderColor(theme.ActiveTheme().BorderFocused) })
 	v.table.SetBlurFunc(func() { v.table.SetBorderColor(theme.ActiveTheme().BorderColor) })
 
-	v.renderHeaders([]string{"Task ID", "State", "Operator", "Duration", "Try", "Start"})
+	v.renderHeaders([]string{"Task ID", "Operator", "Owner", "Retries", "Trigger", "Pool", "Queue", "Downstream"})
 
 	v.table.SetSelectedFunc(func(row, column int) {
-		if row <= 0 || v.onSelected == nil {
-			return
-		}
-		if v.showingDefinitions && row <= len(v.taskDefinitions) {
-			v.setActiveTask(v.taskDefinitions[row-1].TaskId)
-			v.onSelected(v.taskDefinitions[row-1].TaskId)
-			return
-		}
-		if !v.showingDefinitions && row <= len(v.taskInstances) {
-			v.setActiveTask(v.taskInstances[row-1].TaskId)
-			if v.onSelected != nil {
-				v.onSelected(v.taskInstances[row-1].TaskId)
-			}
+		if row > 0 && row <= len(v.taskDefinitions) {
+			v.selectTask(v.taskDefinitions[row-1].TaskId)
 		}
 	})
 }
@@ -86,20 +79,11 @@ func (v *TasksView) renderHeaders(headers []string) {
 	}
 }
 
-// currentTaskIds returns the task ids backing the rows currently rendered.
-func (v *TasksView) currentTaskIds() []string {
-	if v.showingDefinitions {
-		ids := make([]string, len(v.taskDefinitions))
-		for i, t := range v.taskDefinitions {
-			ids[i] = t.TaskId
-		}
-		return ids
+func (v *TasksView) selectTask(taskId string) {
+	v.setActiveTask(taskId)
+	if v.onSelected != nil {
+		v.onSelected(taskId)
 	}
-	ids := make([]string, len(v.taskInstances))
-	for i, t := range v.taskInstances {
-		ids[i] = t.TaskId
-	}
-	return ids
 }
 
 // setActiveTask re-marks the committed row in place; see DagListView.setActiveDag.
@@ -108,13 +92,13 @@ func (v *TasksView) setActiveTask(taskId string) {
 		return
 	}
 	v.activeTaskId = taskId
-	for i, id := range v.currentTaskIds() {
+	for i, t := range v.taskDefinitions {
 		cell := v.table.GetCell(i+1, 0)
 		if cell == nil {
 			continue
 		}
-		active := id == taskId
-		cell.SetText(rowLabel(id, active)).SetTextColor(rowLabelColor(active))
+		active := t.TaskId == taskId
+		cell.SetText(rowLabel(t.TaskId, active)).SetTextColor(rowLabelColor(active))
 	}
 }
 
@@ -122,67 +106,34 @@ func (v *TasksView) SetOnSelected(handler func(taskId string)) {
 	v.onSelected = handler
 }
 
-// Update redraws the table view. The Gantt view is updated separately via
-// UpdateGantt; switch which is visible with SetGanttMode.
-func (v *TasksView) Update(tasks []models.TaskInstance) {
-	v.showingDefinitions = false
-	v.taskInstances = tasks
-	v.table.Clear()
-	v.setupTable()
-	if len(tasks) == 0 {
-		setEmptyHint(v.table, "No task instances for this run yet.")
-		return
-	}
-	v.table.SetSelectable(true, false)
-
-	t := theme.ActiveTheme()
-	for i, task := range tasks {
-		row := i + 1
-		bg := t.PrimaryBg
-		if row%2 == 0 {
-			bg = t.TableRowAlt
-		}
-
-		active := task.TaskId == v.activeTaskId
-		v.table.SetCell(row, 0, tview.NewTableCell(rowLabel(task.TaskId, active)).
-			SetTextColor(rowLabelColor(active)).SetExpansion(1).SetBackgroundColor(bg))
-
-		symbol, color := t.StatusStyle(task.State)
-		v.table.SetCell(row, 1, tview.NewTableCell(fmt.Sprintf("%s %s", symbol, task.State)).
-			SetTextColor(color).SetBackgroundColor(bg))
-
-		v.table.SetCell(row, 2, tview.NewTableCell(task.Operator).
-			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
-
-		v.table.SetCell(row, 3, tview.NewTableCell(fmt.Sprintf("%.1fs", task.Duration)).
-			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
-
-		v.table.SetCell(row, 4, tview.NewTableCell(fmt.Sprintf("%d", task.TryNumber)).
-			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
-
-		startStr := ""
-		if task.StartDate != nil && !task.StartDate.IsZero() {
-			startStr = task.StartDate.Format("01-02 15:04:05")
-		}
-		v.table.SetCell(row, 5, tview.NewTableCell(startStr).
-			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
+// showActive brings the page matching the current mode to the front.
+func (v *TasksView) showActive() {
+	switch {
+	case v.ganttMode:
+		v.SwitchToPage(tasksPageGantt)
+	case v.hasRun:
+		v.SwitchToPage(tasksPageRun)
+	default:
+		v.SwitchToPage(tasksPageDefs)
 	}
 }
 
-// UpdateDefinitions redraws the table with DAG-level task definitions. These
-// rows do not require a DAG run and are useful before drilling into a run.
+// UpdateRun renders the run dashboard for the selected run.
+func (v *TasksView) UpdateRun(run models.DAGRun, tis []models.TaskInstance, defs []models.Task, onCritical map[string]bool) {
+	v.hasRun = run.RunId != ""
+	v.run.UpdateRun(run, tis, defs, onCritical)
+	v.showActive()
+}
+
+// UpdateDefinitions redraws the DAG-level task definitions, which need no run.
 func (v *TasksView) UpdateDefinitions(dagId string, tasks []models.Task) {
-	v.showingDefinitions = true
+	v.hasRun = false
 	v.taskDefinitions = tasks
 	v.table.Clear()
-	v.table.SetTitle(" DAG Tasks ")
-	v.table.SetSelectable(false, false)
-	v.renderHeaders([]string{"Task ID", "Operator", "Owner", "Retries", "Trigger", "Pool", "Queue", "Downstream"})
+	v.setupTable()
 	if len(tasks) == 0 {
-		v.table.SetCell(1, 0, tview.NewTableCell(fmt.Sprintf("No DAG tasks loaded for %s", dagId)).
-			SetTextColor(theme.ActiveTheme().MutedText).
-			SetExpansion(1).
-			SetSelectable(false))
+		setEmptyHint(v.table, fmt.Sprintf("No DAG tasks loaded for %s", dagId))
+		v.showActive()
 		return
 	}
 	v.table.SetSelectable(true, false)
@@ -213,15 +164,13 @@ func (v *TasksView) UpdateDefinitions(dagId string, tasks []models.Task) {
 		v.table.SetCell(row, 7, tview.NewTableCell(fmt.Sprintf("%d", len(task.DownstreamTaskIds))).
 			SetTextColor(t.PrimaryText).SetBackgroundColor(bg))
 	}
+	v.showActive()
 }
 
 // SetGanttMode switches which child page is visible.
 func (v *TasksView) SetGanttMode(on bool) {
-	if on {
-		v.SwitchToPage(tasksPageGantt)
-	} else {
-		v.SwitchToPage(tasksPageTable)
-	}
+	v.ganttMode = on
+	v.showActive()
 }
 
 // UpdateGantt forwards a fresh render to the embedded GanttView.
@@ -229,7 +178,9 @@ func (v *TasksView) UpdateGantt(runId string, tis []models.TaskInstance, onCriti
 	v.gantt.Update(runId, tis, onCritical)
 }
 
-// Root returns the Pages primitive (now interface, was *tview.Table).
+// Run exposes the run dashboard so callers can push logs into its preview pane.
+func (v *TasksView) Run() *ExecutionView { return v.run }
+
 func (v *TasksView) Root() tview.Primitive {
 	return v.Pages
 }

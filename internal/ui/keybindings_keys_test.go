@@ -144,7 +144,7 @@ func TestEmptyTableNavigationDoesNotHang(t *testing.T) {
 	// Drive the empty-data path so the empty-hint rows are covered too.
 	l.DagList().Update(nil)
 	l.Runs().Update(nil)
-	l.Tasks().Update(nil)
+	l.Tasks().UpdateDefinitions("etl", nil)
 	l.Connections().Update(nil)
 	l.Variables().Update(nil)
 	l.Config().Update(nil)
@@ -199,5 +199,44 @@ func TestEmptyTableNavigationDoesNotHang(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("navigation keys hung on an empty table (tview header-only loop)")
+	}
+}
+
+// Esc unwinds the drill-down chain while focus is in the tab area, and parks on
+// the DAG list once the chain is exhausted or focus sits on a top panel.
+func TestEscUnwindsDrillDown(t *testing.T) {
+	kb, l, s := newKB(t)
+	app := kb.app
+
+	s.SetActiveTab("logs")
+	l.SwitchTab("logs")
+	app.SetFocus(l.ActiveTabPrimitive())
+
+	kb.handle(key(tcell.KeyEsc, 0, tcell.ModNone))
+	if s.ActiveTab() != "tasks" {
+		t.Fatalf("Esc from logs → %q, want tasks", s.ActiveTab())
+	}
+	kb.handle(key(tcell.KeyEsc, 0, tcell.ModNone))
+	if s.ActiveTab() != "runs" {
+		t.Fatalf("Esc from tasks → %q, want runs", s.ActiveTab())
+	}
+	kb.handle(key(tcell.KeyEsc, 0, tcell.ModNone))
+	if s.ActiveTab() != "runs" {
+		t.Fatalf("Esc from runs changed the tab to %q", s.ActiveTab())
+	}
+	if app.GetFocus() != l.DagList() {
+		t.Error("Esc at the top of the chain should focus the DAG list")
+	}
+
+	// From a top panel Esc must not touch the tab, only the focus.
+	s.SetActiveTab("tasks")
+	l.SwitchTab("tasks")
+	app.SetFocus(l.DagInfo().Meta())
+	kb.handle(key(tcell.KeyEsc, 0, tcell.ModNone))
+	if s.ActiveTab() != "tasks" {
+		t.Errorf("Esc from DAG info changed the tab to %q", s.ActiveTab())
+	}
+	if app.GetFocus() != l.DagList() {
+		t.Error("Esc from DAG info should focus the DAG list")
 	}
 }
