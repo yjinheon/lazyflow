@@ -24,11 +24,73 @@ func TestHighlightLogs_preservesVisibleText(t *testing.T) {
 	}
 }
 
-// A bracket in the message must reach tview escaped, not read as a colour tag.
-func TestHighlightLogs_escapesBrackets(t *testing.T) {
-	out := HighlightLogs("{a.py:1} INFO - got [red] from upstream")
-	if !strings.Contains(out, "[red[]") {
-		t.Errorf("bracket not escaped: %q", out)
+// A bracket that is not Rich markup must reach tview escaped, never swallowed
+// as a colour tag.
+func TestHighlightLogs_escapesNonMarkupBrackets(t *testing.T) {
+	tests := map[string]string{
+		"{a.py:1} INFO - got [not a tag] from upstream": "[not a tag[]",
+		"{a.py:1} INFO - shape [1024] rows":             "[1024[]",
+		"{a.py:1} INFO - key [INFO] missing":            "[INFO[]",
+	}
+	for in, want := range tests {
+		if out := HighlightLogs(in); !strings.Contains(out, want) {
+			t.Errorf("bracket not escaped in %q:\n got %q\nwant substring %q", in, out, want)
+		}
+	}
+}
+
+// Rich markup printed by DAG code becomes real colour instead of literal tags.
+func TestHighlightLogs_convertsRichMarkup(t *testing.T) {
+	body := theme.MarkupHex(theme.ActiveTheme().PrimaryText)
+
+	cyan := theme.MarkupHex(theme.ActiveTheme().SectionHeader)
+	green := theme.MarkupHex(theme.ActiveTheme().StatusSuccess)
+
+	out := HighlightLogs("{task.stdout} INFO - [cyan]transform_b[/cyan]: rows=[green]4[/green]")
+	for _, want := range []string{"[" + cyan + "::-]transform_b", "[" + green + "::-]4"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %q", want, out)
+		}
+	}
+	// Closing tags restore the message colour rather than leaking the last one.
+	if !strings.Contains(out, "["+green+"::-]4["+body+"::-]") {
+		t.Errorf("close tag did not restore body colour: %q", out)
+	}
+	if strings.Contains(out, "[/cyan") || strings.Contains(out, "[/green") {
+		t.Errorf("closing tag left in output: %q", out)
+	}
+}
+
+func TestHighlightLogs_richNesting(t *testing.T) {
+	body := theme.MarkupHex(theme.ActiveTheme().PrimaryText)
+	out := HighlightLogs("INFO - [bold][red]bad[/red] still bold[/]done")
+	for _, want := range []string{
+		"[" + theme.MarkupHex(theme.ActiveTheme().StatusFailed) + "::b]bad", // folded onto the enclosing bold
+		"[" + body + "::b] still", // [/red] keeps bold, restores body colour
+		"[" + body + "::-]done",   // [/] drops bold too
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %q", want, out)
+		}
+	}
+}
+
+func TestHighlightLogs_richBrightAndHex(t *testing.T) {
+	out := HighlightLogs("INFO - [bright_red]hot[/] [#ff8800]warm[/]")
+	if !strings.Contains(out, "["+theme.MarkupHex(theme.ActiveTheme().StatusFailed)+"::b]hot") {
+		t.Errorf("bright_red should render as bold red: %q", out)
+	}
+	if !strings.Contains(out, "[#ff8800::-]warm") {
+		t.Errorf("hex colour not applied: %q", out)
+	}
+}
+
+// An unmatched close must not pop past the message style.
+func TestHighlightLogs_richUnbalancedClose(t *testing.T) {
+	body := theme.MarkupHex(theme.ActiveTheme().PrimaryText)
+	out := HighlightLogs("INFO - [/cyan]plain")
+	if !strings.Contains(out, "["+body+"::-]plain") {
+		t.Errorf("stray close broke the body style: %q", out)
 	}
 }
 

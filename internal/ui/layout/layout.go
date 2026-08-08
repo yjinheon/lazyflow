@@ -34,19 +34,19 @@ type MainLayout struct {
 	statusBar   *StatusBar
 
 	// Tab views
-	runsView          *views.RunsView
-	tasksView         *views.TasksView
-	logsView          *views.LogsView
-	codeView          *views.CodeView
-	configView        *views.ConfigView
-	connectionsView   *views.ConnectionsView
-	variablesView     *views.VariablesView
-	monitorView       *views.MonitorView
-	lineageView       *views.LineageView
-	backfillsView *views.BackfillsView
-	helpView      *views.HelpView
-	modalOpen     bool
-	searchOpen    bool
+	runsView        *views.RunsView
+	tasksView       *views.TasksView
+	logsView        *views.LogsView
+	codeView        *views.CodeView
+	configView      *views.ConfigView
+	connectionsView *views.ConnectionsView
+	variablesView   *views.VariablesView
+	monitorView     *views.MonitorView
+	lineageView     *views.LineageView
+	backfillsView   *views.BackfillsView
+	helpView        *views.HelpView
+	modalOpen       bool
+	searchOpen      bool
 
 	tabContent *tview.Pages
 }
