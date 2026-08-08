@@ -2,7 +2,7 @@
 
 Lazyflow is a terminal UI designed to simplify and accelerate interactions with **Apache Airflow 3** clusters.
 
-![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](lazyflow-demo.mp4)
+![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](lazyflow-demo.gif)
 
 ## Features
 
