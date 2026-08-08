@@ -1,8 +1,8 @@
 # Lazyflow
 
-Lazyflow is a k9s-style terminal UI designed to simplify and accelerate interactions with **Apache Airflow 3** clusters.
+Lazyflow is a terminal UI designed to simplify and accelerate interactions with **Apache Airflow 3** clusters.
 
-![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](lazyflow-demo.gif)
+![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](lazyflow-demo.mp4)
 
 ## Features
 
@@ -185,8 +185,8 @@ Bare arrow keys belong to the focused widget, so only Shift+arrow cycles tabs.
 
 ## Acknowledgements
 
-This project is inspired by k9s, kdash, and lazygit.
+This project is inspired by kdash,k9s, and lazygit.
 
-- https://github.com/derailed/k9s
 - https://github.com/kdash-rs/kdash
+- https://github.com/derailed/k9s
 - https://github.com/jesseduffield/lazygit
