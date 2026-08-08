@@ -4,7 +4,7 @@ Lazyflow is a k9s-style terminal user interface for **Apache Airflow 3**, writte
 Go using [`rivo/tview`](https://github.com/rivo/tview) + [`gdamore/tcell`](https://github.com/gdamore/tcell).
 It talks to Airflow's REST API v2 and manages JWT auth internally.
 
-![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](docs/assets/lazyflow-demo.gif)
+![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](lazyflow-demo.gif)
 
 ## Features
 
@@ -43,6 +43,7 @@ It talks to Airflow's REST API v2 and manages JWT auth internally.
 3. Run the application:
    ```bash
    just run           # or: ./lazyflow
+   
    ```
 
 Common `just` tasks: `build`, `run`, `dev` (build + run), `test`, `lint`, `tidy`, `clean`.
