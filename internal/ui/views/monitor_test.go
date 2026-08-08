@@ -137,7 +137,7 @@ func TestMonitorView_noSamplesAreNotRenderedAsZero(t *testing.T) {
 func TestMonitorView_noSelection(t *testing.T) {
 	v := NewMonitorView()
 	v.Update("", nil, nil)
-	if !strings.Contains(v.GetText(true), "DAG를 선택") {
+	if !strings.Contains(v.GetText(true), "Select a DAG") {
 		t.Fatalf("expected selection hint, got %q", v.GetText(true))
 	}
 }

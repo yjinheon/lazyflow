@@ -1,8 +1,6 @@
 # Lazyflow
 
-Lazyflow is a k9s-style terminal user interface for **Apache Airflow 3**, written in
-Go using [`rivo/tview`](https://github.com/rivo/tview) + [`gdamore/tcell`](https://github.com/gdamore/tcell).
-It talks to Airflow's REST API v2 and manages JWT auth internally.
+Lazyflow is a k9s-style terminal UI designed to simplify and accelerate interactions with **Apache Airflow 3** clusters.
 
 ![Lazyflow demo: search a DAG, inspect run health, drill into task logs, and view lineage](lazyflow-demo.gif)
 
@@ -11,9 +9,13 @@ It talks to Airflow's REST API v2 and manages JWT auth internally.
 - **Cluster overview** — a KPI bar at the top shows cluster-wide DAG counts
   (Active / Paused / Running / Success / Failed) over a configurable rollup window.
 - **DAG list** with live filtering (active / all / failed) and search.
-- **Drill-down navigation** — DAG → run → task → logs, each in its own tab.
-- **Nine+ tabs**: Runs, Tasks, Logs, Code, Lineage, Monitor, Backfills,
-  Connections, Variables, Config, plus a Help keymap page.
+- **Drill-down navigation** — DAG → run → task → logs. Picking a run turns the
+  Tasks tab into a live run dashboard (summary, task list, detail, log preview,
+  DAG graph, Gantt); `Esc` walks back up.
+- **Ten tabs**: Runs, Tasks, Logs, Code, Lineage, Monitor, Backfills,
+  Connections, Variables, Config — plus a Help keymap page.
+- **Syntax highlighting** for DAG source, and colour-coded task logs
+  (level, timestamp, logger, plus Rich markup printed by your DAGs).
 - **Gantt & lineage graph** toggles for the Tasks and Lineage tabs.
 - **DAG actions** — trigger, pause/unpause, and backfill straight from the UI.
 - **Backfill management** — pause, unpause, and cancel running backfills.
@@ -50,6 +52,9 @@ Common `just` tasks: `build`, `run`, `dev` (build + run), `test`, `lint`, `tidy`
 
 ## Configuration
 
+Lazyflow talks to Airflow's REST API v2 and manages JWT auth internally, so it
+only needs a base URL and credentials.
+
 Config is loaded in this precedence order (later sources win):
 
 1. `configs/default.yaml` (project-local), if present
@@ -85,17 +90,6 @@ ui:
 A runtime debug log is written to `lazyflow.log` in the working directory
 (recreated on each launch).
 
-## Layout
-
-```
-┌ Header ─────────────────────────────────────────────┐
-├ KPI Bar (cluster DAG counts) ───────────────────────┤
-├ DAG List │ DAG Info │ Cluster / Pool Info ───────────┤
-├ Tab Bar ────────────────────────────────────────────┤
-├ Active Tab (Runs / Tasks / Logs / … / Help) ────────┤
-├ Status Bar ─────────────────────────────────────────┘
-```
-
 ## Keybindings
 
 ### Global
@@ -104,18 +98,19 @@ A runtime debug log is written to `lazyflow.log` in the working directory
 | --- | --- |
 | Ctrl+C | Quit |
 | F5 | Refresh |
-| Esc | Close modal / execution view, or return focus to DAG list |
-| Tab / Shift+Tab | Cycle panels: DAG list → info → run-filter → cluster → active tab |
-| Left / Right | Previous / next tab |
+| Esc | Back up one level (logs → tasks → runs); elsewhere, focus the DAG list |
+| Tab / Shift+Tab | Cycle panels: DAG list → filters → DAG info → cluster → active tab |
 | / | Search DAGs |
 | ? | Show help keymap |
 
 ### Tabs
 
+Number keys work anywhere, including inside a run drill-down.
+
 | Key | View |
 | --- | --- |
 | 1 | Runs |
-| 2 | Tasks |
+| 2 | Tasks (run dashboard when a run is selected) |
 | 3 | Logs |
 | 4 | Code |
 | 5 | Lineage |
@@ -126,12 +121,19 @@ A runtime debug log is written to `lazyflow.log` in the working directory
 | 0 | Config |
 | B | Backfills (alias) |
 | g | Toggle Tasks gantt / Lineage graph |
+| Shift+← / Shift+→ | Previous / next tab |
+| < / > | Previous / next tab (for terminals that swallow Shift+arrows) |
 
 ### Navigation
 
+Bare arrow keys belong to the focused widget, so only Shift+arrow cycles tabs.
+
 | Key | Action |
 | --- | --- |
-| j / k | Move up / down |
+| j / k · ↑ / ↓ | Move up / down |
+| h / l · ← / → | Scroll columns left / right |
+| g / G | Jump to top / bottom (outside the Tasks and Lineage tabs) |
+| PgUp / PgDn | Page up / down |
 | Enter | Select / drill down |
 
 ### DAG Actions
@@ -149,6 +151,13 @@ A runtime debug log is written to `lazyflow.log` in the working directory
 | p / u | Pause / unpause selected backfill |
 | c | Cancel selected backfill |
 
+### Monitor Tab
+
+| Key | Action |
+| --- | --- |
+| [ / ] | Previous / next time window |
+| r | Refresh dashboard |
+
 ### DAG Filters
 
 | Key | Action |
@@ -156,13 +165,14 @@ A runtime debug log is written to `lazyflow.log` in the working directory
 | a | Active DAGs only |
 | A | All DAGs |
 | f | Failed DAGs only |
+| ← / → on the KPI bar | All / active / paused / run-state filters |
 
 ### Focus
 
 | Key | Action |
 | --- | --- |
 | d | Focus DAG list |
-| i | Focus DAG info run-filter (↑↓ select, Enter filters Runs) |
+| i | Focus DAG info panel (scrollable) |
 | o | Focus cluster panel (press again to toggle pool compact/table) |
 
 ### Modal Actions
