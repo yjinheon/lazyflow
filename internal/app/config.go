@@ -83,11 +83,11 @@ func DefaultConfig() Config {
 	}
 }
 
-// LoadConfig loads configuration from file, then overlays environment variables.
+// LoadConfig loads configuration files in precedence order, then overlays environment variables.
 func LoadConfig() (Config, error) {
 	cfg := DefaultConfig()
 
-	// Try config file paths in order
+	// Apply every existing config file so later paths override earlier ones.
 	paths := configPaths()
 	for _, p := range paths {
 		data, err := os.ReadFile(p)
@@ -97,7 +97,6 @@ func LoadConfig() (Config, error) {
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
 			return cfg, fmt.Errorf("parse config %s: %w", p, err)
 		}
-		break
 	}
 
 	// Environment variable overrides
