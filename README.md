@@ -1,3 +1,5 @@
+
+
 # Lazyflow
 
 Lazyflow is a terminal UI designed to simplify and accelerate interactions with **Apache Airflow 3** clusters.
@@ -55,7 +57,7 @@ Common `just` tasks: `build`, `run`, `dev` (build + run), `test`, `lint`, `tidy`
 Lazyflow talks to Airflow's REST API v2 and manages JWT auth internally, so it
 only needs a base URL and credentials.
 
-Config is loaded in this precedence order (later sources win):
+Config is loaded in this precedence order (first file wins):
 
 1. `configs/default.yaml` (project-local), if present
 2. `~/.config/lazyflow/config.yaml`
